@@ -1,0 +1,16 @@
+.DS_Store
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+.env
+key.*
+
+# Local secrets — never commit
+Secrets.plist
+.env
+
+# Scratch space for development artifacts not checked in
+tmp/

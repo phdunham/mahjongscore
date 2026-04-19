@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild -version)",
+      "Bash(swift --version)",
+      "WebFetch(domain:www.twmahjong.com)",
+      "Bash(curl -sI https://www.twmahjong.com/)",
+      "Bash(curl -s https://www.twmahjong.com/ -o /Users/pdunham/work/mahjongscore/tmp/raw.html)",
+      "Bash(iconv -f UTF-16LE -t UTF-8 /Users/pdunham/work/mahjongscore/tmp/raw.html)",
+      "Bash(python3 -c \"from bs4 import BeautifulSoup; print\\('ok'\\)\")",
+      "Bash(pip3 install *)",
+      "Bash(python3)",
+      "Bash(python3 /Users/pdunham/work/mahjongscore/tmp/build_rules.py)",
+      "Bash(swift test *)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/pdunham/work/mahjongscore/Sources/MahjongCore/Resources/Rules.json'\\)\\); bad=[p for p in d['patterns'] if not isinstance\\(p['tai'], int\\)]; print\\('Total patterns:', len\\(d['patterns']\\)\\); print\\('Non-integer tai rows:', len\\(bad\\)\\); [print\\(' -', p['nameZh'], repr\\(p['tai']\\)\\) for p in bad]\")",
+      "Bash(swift build *)",
+      "Bash(kill 35947)"
+    ]
+  }
+}

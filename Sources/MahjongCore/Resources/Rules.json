@@ -1,0 +1,799 @@
+{
+  "source": "https://www.twmahjong.com/",
+  "variant": "taiwan-16-hk",
+  "fetchedAt": "2026-04-18",
+  "patterns": [
+    {
+      "id": "no-flowers",
+      "nameZh": "無花",
+      "nameEn": "No Flowers",
+      "tai": 1,
+      "category": "flower",
+      "description": "沒有花牌",
+      "descriptionEn": "Hand contains no flower tiles."
+    },
+    {
+      "id": "correct-flower",
+      "nameZh": "正花",
+      "nameEn": "Correct Flower",
+      "tai": 2,
+      "category": "flower",
+      "description": "花牌數字同坐位相同",
+      "descriptionEn": "Flower tile number matches player's seat wind."
+    },
+    {
+      "id": "wrong-flower",
+      "nameZh": "爛花",
+      "nameEn": "Wrong Flower",
+      "tai": 1,
+      "category": "flower",
+      "description": "花牌數字同坐位不同",
+      "descriptionEn": "Flower tile number does not match player's seat wind."
+    },
+    {
+      "id": "one-set-flowers",
+      "nameZh": "一台花",
+      "nameEn": "One Set of Flowers",
+      "tai": 10,
+      "category": "flower",
+      "description": "四隻同系列的花",
+      "descriptionEn": "All four flowers from one of the two flower sets."
+    },
+    {
+      "id": "two-sets-flowers",
+      "nameZh": "兩台花 (花胡)",
+      "nameEn": "Two Sets of Flowers (Flower Win)",
+      "tai": 30,
+      "category": "flower",
+      "description": "二台花可以立刻食胡, 不須要計手上的牌",
+      "descriptionEn": "Drawing both sets of flowers is an instant win regardless of hand."
+    },
+    {
+      "id": "pung-seat-wind",
+      "nameZh": "碰出東、南、西或北(正風)",
+      "nameEn": "Pung of Seat Wind",
+      "tai": 2,
+      "category": "dragon-wind",
+      "description": "正風牌刻子",
+      "descriptionEn": "Triplet of one's own seat / prevailing wind."
+    },
+    {
+      "id": "pung-other-wind",
+      "nameZh": "碰出東、南、西或北(不是正風)",
+      "nameEn": "Pung of Non-Seat Wind",
+      "tai": 1,
+      "category": "dragon-wind",
+      "description": "非正風牌刻子",
+      "descriptionEn": "Triplet of a wind that is not the seat / prevailing wind."
+    },
+    {
+      "id": "pung-dragon",
+      "nameZh": "碰出中、發或白",
+      "nameEn": "Pung of a Dragon (Red/Green/White)",
+      "tai": 2,
+      "category": "dragon-wind",
+      "description": "中、發或白刻子",
+      "descriptionEn": "Triplet of red, green or white dragon."
+    },
+    {
+      "id": "declared-ready",
+      "nameZh": "聽牌 (叮)",
+      "nameEn": "Declared Ready (Ting)",
+      "tai": 5,
+      "category": "bonus",
+      "description": "聲明已經叫胡，不得轉章，不得暗槓，可以睇其他家的牌",
+      "descriptionEn": "Player announces ready hand; may view others' discards but cannot change tiles or conceal-kong."
+    },
+    {
+      "id": "chicken-hand",
+      "nameZh": "雞胡",
+      "nameEn": "Chicken Hand",
+      "tai": 10,
+      "category": "bonus",
+      "description": "胡出時(不計莊前)只得一番",
+      "descriptionEn": "Hand that scores only one tai (excluding dealer-continue); pays out at the chicken-hand rate."
+    },
+    {
+      "id": "pair-wait",
+      "nameZh": "對碰",
+      "nameEn": "Pair Wait",
+      "tai": 1,
+      "category": "bonus",
+      "description": "叫胡叫對碰",
+      "descriptionEn": "Winning on a shanpon / dual-pair wait."
+    },
+    {
+      "id": "near-single-wait",
+      "nameZh": "假獨",
+      "nameEn": "Near-Single Wait",
+      "tai": 1,
+      "category": "bonus",
+      "description": "可以砌到叫單釣或叫偏章",
+      "descriptionEn": "Hand could also be arranged as a single-tile or edge wait."
+    },
+    {
+      "id": "single-edge-wait",
+      "nameZh": "獨獨",
+      "nameEn": "Single / Edge Wait",
+      "tai": 2,
+      "category": "bonus",
+      "description": "單釣或叫偏章",
+      "descriptionEn": "Winning on a single-tile (pair) wait or an edge wait."
+    },
+    {
+      "id": "all-chows",
+      "nameZh": "平胡",
+      "nameEn": "All Chows (Ping Hu)",
+      "tai": 3,
+      "category": "suit",
+      "description": "沒有刻子, 全部順子",
+      "descriptionEn": "Hand consists entirely of sequences with no triplets."
+    },
+    {
+      "id": "value-eye",
+      "nameZh": "將眼",
+      "nameEn": "Value Pair Eye",
+      "tai": 1,
+      "category": "bonus",
+      "description": "以一對二、五或八做眼",
+      "descriptionEn": "Using a pair of 2s, 5s or 8s as the eyes."
+    },
+    {
+      "id": "old-young",
+      "nameZh": "老少",
+      "nameEn": "Old and Young",
+      "tai": 2,
+      "category": "set",
+      "description": "同門一,二,三加七,八,九 或 一,一,一加九,九,九 (有同門牌亦可)",
+      "descriptionEn": "In one suit: 1-2-3 plus 7-8-9, or 1-1-1 plus 9-9-9."
+    },
+    {
+      "id": "no-honors",
+      "nameZh": "無字",
+      "nameEn": "No Honor Tiles",
+      "tai": 1,
+      "category": "suit",
+      "description": "沒有番子",
+      "descriptionEn": "Hand contains no honor tiles."
+    },
+    {
+      "id": "no-honors-no-flowers",
+      "nameZh": "無字花",
+      "nameEn": "No Honors and No Flowers",
+      "tai": 5,
+      "category": "suit",
+      "description": "沒有番子及沒有花",
+      "descriptionEn": "Hand contains no honor tiles and no flowers."
+    },
+    {
+      "id": "great-pure-ping",
+      "nameZh": "無字花平胡(大平糊)",
+      "nameEn": "Great Pure Ping Hu",
+      "tai": 10,
+      "category": "suit",
+      "description": "沒有番子，沒有花，又是平胡",
+      "descriptionEn": "No honors, no flowers, and all chows (pure sequence hand)."
+    },
+    {
+      "id": "concealed-hand",
+      "nameZh": "門清",
+      "nameEn": "Concealed Hand",
+      "tai": 3,
+      "category": "bonus",
+      "description": "門前清, 暗槓亦可",
+      "descriptionEn": "No exposed melds; concealed kongs allowed."
+    },
+    {
+      "id": "last-tile-self-draw",
+      "nameZh": "海底撈月",
+      "nameEn": "Last Tile Self-Draw (Moon from Sea Bottom)",
+      "tai": 20,
+      "category": "bonus",
+      "description": "最後一隻牌自摸",
+      "descriptionEn": "Winning by self-drawing the very last tile in the wall."
+    },
+    {
+      "id": "self-draw",
+      "nameZh": "自摸",
+      "nameEn": "Self-Draw",
+      "tai": 1,
+      "category": "bonus",
+      "description": "自己摸食出",
+      "descriptionEn": "Winning tile is drawn by the winner themselves."
+    },
+    {
+      "id": "concealed-self-draw",
+      "nameZh": "門清自摸",
+      "nameEn": "Concealed Self-Draw",
+      "tai": 5,
+      "category": "bonus",
+      "description": "門前清自摸",
+      "descriptionEn": "Winning by self-draw while fully concealed."
+    },
+    {
+      "id": "exposed-kong",
+      "nameZh": "明摃",
+      "nameEn": "Exposed Kong",
+      "tai": 1,
+      "category": "set",
+      "description": "自己摸到三張相同牌，碰出第四張",
+      "descriptionEn": "Three tiles in hand plus claiming the fourth to form an exposed kong."
+    },
+    {
+      "id": "concealed-kong",
+      "nameZh": "暗摃",
+      "nameEn": "Concealed Kong",
+      "tai": 2,
+      "category": "set",
+      "description": "自己摸到四張相同牌",
+      "descriptionEn": "All four identical tiles drawn by the player forming a concealed kong."
+    },
+    {
+      "id": "win-on-flower",
+      "nameZh": "花上食胡",
+      "nameEn": "Win on Flower Replacement",
+      "tai": 1,
+      "category": "bonus",
+      "description": "摸花時自摸",
+      "descriptionEn": "Self-drawing the winning tile as a flower-replacement tile."
+    },
+    {
+      "id": "win-on-kong",
+      "nameZh": "摃上食胡",
+      "nameEn": "Win on Kong Replacement",
+      "tai": 1,
+      "category": "bonus",
+      "description": "開摃時自摸",
+      "descriptionEn": "Self-drawing the winning tile as a kong-replacement tile."
+    },
+    {
+      "id": "robbing-a-kong",
+      "nameZh": "搶摃食胡",
+      "nameEn": "Robbing a Kong",
+      "tai": 1,
+      "category": "bonus",
+      "description": "搶摃不當自摸，搶摃只當是被搶那家出沖，不過加一番",
+      "descriptionEn": "Winning by robbing the tile another player adds to a pung to form an exposed kong; counts as discard-win plus one tai."
+    },
+    {
+      "id": "kong-on-kong-win",
+      "nameZh": "摃上摃食胡",
+      "nameEn": "Kong-on-Kong Win",
+      "tai": 30,
+      "category": "bonus",
+      "description": "開槓後再開槓時自摸",
+      "descriptionEn": "Self-draw win on a kong-replacement tile immediately after another kong."
+    },
+    {
+      "id": "robbing-kong-on-kong",
+      "nameZh": "搶摃上摃食胡",
+      "nameEn": "Robbing a Kong-on-Kong",
+      "tai": 30,
+      "category": "bonus",
+      "description": "也是不當自摸，當摃上摃的那家出沖",
+      "descriptionEn": "Robbing the tile used for a consecutive kong; treated as discard-win from the kong-maker."
+    },
+    {
+      "id": "two-concealed-pungs",
+      "nameZh": "二暗刻",
+      "nameEn": "Two Concealed Pungs",
+      "tai": 3,
+      "category": "set",
+      "description": "刻子就是三隻一樣的牌。明摃、暗摃或在自己手上三隻一樣的牌叫做暗刻",
+      "descriptionEn": "Two concealed triplets in hand (exposed/concealed kongs also count)."
+    },
+    {
+      "id": "three-concealed-pungs",
+      "nameZh": "三暗刻",
+      "nameEn": "Three Concealed Pungs",
+      "tai": 10,
+      "category": "set",
+      "description": "三個刻子在自己手裡",
+      "descriptionEn": "Three concealed triplets in hand."
+    },
+    {
+      "id": "four-concealed-pungs",
+      "nameZh": "四暗刻",
+      "nameEn": "Four Concealed Pungs",
+      "tai": 30,
+      "category": "set",
+      "description": "四個刻子在自己手裡",
+      "descriptionEn": "Four concealed triplets in hand."
+    },
+    {
+      "id": "identical-chow",
+      "nameZh": "一般高",
+      "nameEn": "Identical Chows (Pure Double)",
+      "tai": 3,
+      "category": "set",
+      "description": "兩個一樣的順子",
+      "descriptionEn": "Two identical sequences in the same suit."
+    },
+    {
+      "id": "three-identical-chows",
+      "nameZh": "三般高",
+      "nameEn": "Three Identical Chows",
+      "tai": 15,
+      "category": "set",
+      "description": "三個一樣的順子",
+      "descriptionEn": "Three identical sequences in the same suit."
+    },
+    {
+      "id": "four-identical-chows",
+      "nameZh": "四般高",
+      "nameEn": "Four Identical Chows",
+      "tai": 30,
+      "category": "set",
+      "description": "四個一樣的順子",
+      "descriptionEn": "Four identical sequences in the same suit."
+    },
+    {
+      "id": "mixed-double-chow",
+      "nameZh": "二相逢(順子)",
+      "nameEn": "Mixed Double Chow",
+      "tai": 2,
+      "category": "set",
+      "description": "二個款式不同的但數字一樣順子",
+      "descriptionEn": "Two sequences of the same numbers in two different suits."
+    },
+    {
+      "id": "mixed-triple-chow",
+      "nameZh": "三相逢(順子)",
+      "nameEn": "Mixed Triple Chow",
+      "tai": 10,
+      "category": "set",
+      "description": "三個款式不同的但數字一樣順子",
+      "descriptionEn": "Three sequences of the same numbers in three different suits."
+    },
+    {
+      "id": "four-same-chows",
+      "nameZh": "四同順",
+      "nameEn": "Four Same-Number Chows",
+      "tai": 20,
+      "category": "set",
+      "description": "四個數字一樣順子，不論款式，不再計三相逢/一般高/兩般高/三般高",
+      "descriptionEn": "Four chows of the same numbers (any suits); excludes other identical-chow bonuses."
+    },
+    {
+      "id": "five-same-chows",
+      "nameZh": "五同順",
+      "nameEn": "Five Same-Number Chows",
+      "tai": 40,
+      "category": "set",
+      "description": "五個數字一樣順子，不論款式，不再計三相逢/一般高/兩般高/三般高",
+      "descriptionEn": "Five chows of the same numbers (any suits); excludes other identical-chow bonuses."
+    },
+    {
+      "id": "two-brothers",
+      "nameZh": "二兄弟(刻子)",
+      "nameEn": "Two Brothers (Double Pung)",
+      "tai": 3,
+      "category": "set",
+      "description": "兩款數字一樣的刻子",
+      "descriptionEn": "Two triplets of the same number in different suits."
+    },
+    {
+      "id": "small-three-brothers",
+      "nameZh": "小三兄弟(刻子)",
+      "nameEn": "Small Three Brothers",
+      "tai": 10,
+      "category": "set",
+      "description": "二兄弟再加上另一個兄弟做眼",
+      "descriptionEn": "Two same-number triplets plus the third same-number pair as eyes."
+    },
+    {
+      "id": "big-three-brothers",
+      "nameZh": "大三兄弟(刻子)",
+      "nameEn": "Big Three Brothers",
+      "tai": 15,
+      "category": "set",
+      "description": "三款數字一樣的刻子",
+      "descriptionEn": "Three triplets of the same number in all three suits."
+    },
+    {
+      "id": "small-three-sisters",
+      "nameZh": "小三姊妹",
+      "nameEn": "Small Three Sisters",
+      "tai": 8,
+      "category": "set",
+      "description": "兩副同款而數子相連樣的刻子，另加一對數子相連的眼",
+      "descriptionEn": "Two consecutive-number triplets in one suit plus a consecutive-number pair as eyes."
+    },
+    {
+      "id": "big-three-sisters",
+      "nameZh": "大三姊妹",
+      "nameEn": "Big Three Sisters",
+      "tai": 15,
+      "category": "set",
+      "description": "三副同款而數子相連樣的刻子",
+      "descriptionEn": "Three triplets of consecutive numbers in the same suit."
+    },
+    {
+      "id": "four-to-one",
+      "nameZh": "四歸一",
+      "nameEn": "Four Tiles Into One",
+      "tai": 5,
+      "category": "set",
+      "description": "用盡同一隻牌的四隻牌",
+      "descriptionEn": "All four copies of one tile used within the hand."
+    },
+    {
+      "id": "four-to-two",
+      "nameZh": "四歸二",
+      "nameEn": "Four Tiles With Pair Eyes",
+      "tai": 10,
+      "category": "set",
+      "description": "用盡同一隻牌的四隻牌, 兩隻做眼",
+      "descriptionEn": "All four copies of one tile used, with two as the eyes."
+    },
+    {
+      "id": "four-to-four",
+      "nameZh": "四歸四",
+      "nameEn": "Four Tiles In Sequences",
+      "tai": 20,
+      "category": "set",
+      "description": "用盡同一隻牌的四隻牌（順子）",
+      "descriptionEn": "All four copies of one tile used across sequences."
+    },
+    {
+      "id": "exposed-pure-straight",
+      "nameZh": "明龍",
+      "nameEn": "Exposed Pure Straight",
+      "tai": 10,
+      "category": "suit",
+      "description": "同一個款式，只有一至九，其中有些是上回來的",
+      "descriptionEn": "1-to-9 straight in one suit with some tiles claimed from discards."
+    },
+    {
+      "id": "concealed-pure-straight",
+      "nameZh": "暗龍",
+      "nameEn": "Concealed Pure Straight",
+      "tai": 20,
+      "category": "suit",
+      "description": "同一個款式，只有一至九，全部是是手裡的，食胡那隻可以是其他家打出",
+      "descriptionEn": "1-to-9 straight in one suit entirely concealed (winning tile from discard allowed)."
+    },
+    {
+      "id": "exposed-mixed-straight",
+      "nameZh": "明雜龍",
+      "nameEn": "Exposed Mixed Straight",
+      "tai": 8,
+      "category": "suit",
+      "description": "同一個款式，只有一至九，其中有些是上回來的",
+      "descriptionEn": "1-9 straight across mixed suits with some tiles from discards."
+    },
+    {
+      "id": "concealed-mixed-straight",
+      "nameZh": "暗雜龍",
+      "nameEn": "Concealed Mixed Straight",
+      "tai": 15,
+      "category": "suit",
+      "description": "同一個款式，只有一至九，全部是是手裡的，食胡那隻可以是其他家打出",
+      "descriptionEn": "1-9 straight across mixed suits entirely concealed (winning tile from discard allowed)."
+    },
+    {
+      "id": "all-five-types",
+      "nameZh": "五門齊",
+      "nameEn": "All Five Types",
+      "tai": 10,
+      "category": "suit",
+      "description": "東南西北為一門，中發白為一門，筒索萬各三門。全副牌五門都有齊",
+      "descriptionEn": "Hand contains tiles from all five categories: winds, dragons, dots, bamboos, characters."
+    },
+    {
+      "id": "one-suit-missing",
+      "nameZh": "缺一門",
+      "nameEn": "One Suit Missing",
+      "tai": 5,
+      "category": "suit",
+      "description": "不計番子而缺少筒、索或萬一門",
+      "descriptionEn": "Hand has no tiles from one of the three suits (honors ignored)."
+    },
+    {
+      "id": "half-flush",
+      "nameZh": "混一色",
+      "nameEn": "Half Flush (Mixed One Suit)",
+      "tai": 30,
+      "category": "suit",
+      "description": "只有一門牌及番子",
+      "descriptionEn": "One suit plus honors only."
+    },
+    {
+      "id": "full-flush",
+      "nameZh": "清一色",
+      "nameEn": "Full Flush (Pure One Suit)",
+      "tai": 80,
+      "category": "suit",
+      "description": "只有一門牌及沒有番子",
+      "descriptionEn": "Only one suit with no honor tiles."
+    },
+    {
+      "id": "all-pungs",
+      "nameZh": "對對胡",
+      "nameEn": "All Pungs",
+      "tai": 30,
+      "category": "set",
+      "description": "全副牌是刻子",
+      "descriptionEn": "Entire hand is made of triplets."
+    },
+    {
+      "id": "all-claimed-discard",
+      "nameZh": "全求人",
+      "nameEn": "All Claimed (Discard Win)",
+      "tai": 15,
+      "category": "bonus",
+      "description": "全副牌落地，單釣而其他家打出胡牌(明槓亦可，暗槓不可)",
+      "descriptionEn": "All sets exposed, single-pair wait, win on another player's discard (exposed kong allowed; concealed kong not)."
+    },
+    {
+      "id": "all-claimed-self-draw",
+      "nameZh": "半求人",
+      "nameEn": "Half Claimed (Self-Draw)",
+      "tai": 8,
+      "category": "bonus",
+      "description": "全副牌落地，單釣而自摸(明槓亦可，暗槓不可)",
+      "descriptionEn": "All sets exposed, single-pair wait, win by self-draw (exposed kong allowed; concealed kong not)."
+    },
+    {
+      "id": "win-within-seven",
+      "nameZh": "七只內",
+      "nameEn": "Win Within Seven Tiles",
+      "tai": 20,
+      "category": "bonus",
+      "description": "拿走食胡牌後，地下只有七隻牌內食胡(算至第七隻)，不計上及碰了的牌",
+      "descriptionEn": "Winning within first seven drawn tiles (not counting claimed tiles), excluding the winning tile."
+    },
+    {
+      "id": "win-within-ten",
+      "nameZh": "十只內",
+      "nameEn": "Win Within Ten Tiles",
+      "tai": 10,
+      "category": "bonus",
+      "description": "拿走食胡牌後，地下只有十隻牌內食胡(算至第十隻)，不計上及碰了的牌",
+      "descriptionEn": "Winning within first ten drawn tiles (not counting claimed tiles), excluding the winning tile."
+    },
+    {
+      "id": "little-three-dragons",
+      "nameZh": "小三元",
+      "nameEn": "Little Three Dragons",
+      "tai": 20,
+      "category": "dragon-wind",
+      "description": "中、發、白其中兩組刻子及一對子",
+      "descriptionEn": "Two dragon triplets plus the third dragon as eyes."
+    },
+    {
+      "id": "big-three-dragons",
+      "nameZh": "大三元",
+      "nameEn": "Big Three Dragons",
+      "tai": 40,
+      "category": "dragon-wind",
+      "description": "中、發、白三組刻子",
+      "descriptionEn": "Triplets of all three dragons."
+    },
+    {
+      "id": "little-three-winds",
+      "nameZh": "小三風",
+      "nameEn": "Little Three Winds",
+      "tai": 15,
+      "category": "dragon-wind",
+      "description": "有東、南、西、北其中兩組刻子及一對做眼",
+      "descriptionEn": "Two wind triplets plus a wind pair as eyes."
+    },
+    {
+      "id": "big-three-winds",
+      "nameZh": "大三風",
+      "nameEn": "Big Three Winds",
+      "tai": 30,
+      "category": "dragon-wind",
+      "description": "有東、南、西、北其中三組刻子",
+      "descriptionEn": "Triplets of three different winds."
+    },
+    {
+      "id": "little-four-winds",
+      "nameZh": "小四喜",
+      "nameEn": "Little Four Winds",
+      "tai": 60,
+      "category": "dragon-wind",
+      "description": "有東、南、西、北其中三組刻子及一對做眼",
+      "descriptionEn": "Three wind triplets plus the fourth wind as eyes."
+    },
+    {
+      "id": "big-four-winds",
+      "nameZh": "大四喜",
+      "nameEn": "Big Four Winds",
+      "tai": 80,
+      "category": "dragon-wind",
+      "description": "有東、南、西、北四組刻子",
+      "descriptionEn": "Triplets of all four winds."
+    },
+    {
+      "id": "thirteen-orphans",
+      "nameZh": "十三么",
+      "nameEn": "Thirteen Orphans",
+      "tai": 80,
+      "category": "special",
+      "description": "十三么，另三隻是自己摸回來的順子或暗刻，不能上或碰回來",
+      "descriptionEn": "Standard thirteen-terminal-and-honor hand plus a concealed sequence or triplet (no claimed tiles)."
+    },
+    {
+      "id": "sixteen-not-touching",
+      "nameZh": "十六不搭 (九唔搭八)",
+      "nameEn": "Sixteen Not Touching",
+      "tai": 40,
+      "category": "special",
+      "description": "東南西北中發白，其他三門每樣三隻，但不能搭上，例如一、四、九或二、五、九，再加一對眼",
+      "descriptionEn": "All seven honors plus three non-adjacent tiles in each of the three suits, plus a pair."
+    },
+    {
+      "id": "five-concealed-pungs",
+      "nameZh": "五暗刻",
+      "nameEn": "Five Concealed Pungs",
+      "tai": 80,
+      "category": "special",
+      "description": "五個刻子在自己手裡",
+      "descriptionEn": "Five concealed triplets in hand."
+    },
+    {
+      "id": "all-pungs-self-draw",
+      "nameZh": "間間胡",
+      "nameEn": "All Pungs Self-Draw (Gaan Gaan)",
+      "tai": 100,
+      "category": "special",
+      "description": "自摸門前對對糊",
+      "descriptionEn": "Concealed all-pungs won by self-draw."
+    },
+    {
+      "id": "seven-pairs-plus",
+      "nameZh": "嚦咕嚦咕",
+      "nameEn": "Lek-Gu Lek-Gu (Eight Pairs)",
+      "tai": 40,
+      "category": "special",
+      "description": "八對子，三隻一樣的不能碰出",
+      "descriptionEn": "Eight pairs; triplets cannot be claimed for pung."
+    },
+    {
+      "id": "all-simples",
+      "nameZh": "斷么",
+      "nameEn": "All Simples",
+      "tai": 5,
+      "category": "terminal",
+      "description": "全副牌沒有么九及番子",
+      "descriptionEn": "Hand contains no terminals (1s/9s) or honor tiles."
+    },
+    {
+      "id": "outside-hand-mixed",
+      "nameZh": "全帶混么",
+      "nameEn": "Outside Hand with Honors",
+      "tai": 10,
+      "category": "terminal",
+      "description": "全副牌每一組合都有么九或番子",
+      "descriptionEn": "Every set (and the eyes) contains a terminal or honor tile."
+    },
+    {
+      "id": "outside-hand-pure",
+      "nameZh": "全帶么",
+      "nameEn": "Pure Outside Hand",
+      "tai": 15,
+      "category": "terminal",
+      "description": "全副牌每一組合都有么九, 無番子",
+      "descriptionEn": "Every set contains a terminal; no honor tiles used."
+    },
+    {
+      "id": "all-terminals-honors",
+      "nameZh": "混么",
+      "nameEn": "All Terminals and Honors",
+      "tai": 30,
+      "category": "terminal",
+      "description": "全副牌都是么九及番子",
+      "descriptionEn": "Hand is entirely terminals and honors."
+    },
+    {
+      "id": "all-terminals",
+      "nameZh": "清么",
+      "nameEn": "All Terminals",
+      "tai": 80,
+      "category": "terminal",
+      "description": "全副牌都是么九",
+      "descriptionEn": "Hand is entirely terminals (no honors)."
+    },
+    {
+      "id": "heavenly-hand",
+      "nameZh": "天胡",
+      "nameEn": "Heavenly Hand",
+      "tai": 100,
+      "category": "special",
+      "description": "莊家一開牌補花後即吃糊 (開牌開槓後吃糊唔計天糊)",
+      "descriptionEn": "Dealer wins immediately after initial deal and flower replacement (subsequent kong replacements do not count)."
+    },
+    {
+      "id": "earthly-hand",
+      "nameZh": "地胡",
+      "nameEn": "Earthly Hand",
+      "tai": 80,
+      "category": "special",
+      "description": "閒家第一次摸牌即自摸",
+      "descriptionEn": "Non-dealer self-draws a winning tile on their first turn."
+    },
+    {
+      "id": "human-hand",
+      "nameZh": "人胡",
+      "nameEn": "Human Hand",
+      "tai": 80,
+      "category": "special",
+      "description": "不是莊家獨有的牌類，閒家在四隻牌內吃糊",
+      "descriptionEn": "Non-dealer wins within the first four tiles drawn (not a dealer-only hand)."
+    },
+    {
+      "id": "chase-discard",
+      "nameZh": "追",
+      "nameEn": "Chase (All Four Discard Same)",
+      "tai": 5,
+      "category": "other",
+      "description": "四家打同一隻牌，第一家俾其他三家每人一個底",
+      "descriptionEn": "When all four players discard the same tile, the first discarder pays one base to each other player (instant pay)."
+    },
+    {
+      "id": "concealed-kong-reveal",
+      "nameZh": "暗摃",
+      "nameEn": "Concealed Kong Reveal",
+      "tai": 5,
+      "category": "other",
+      "description": "暗摃在完結時須打開讓其他家知道，否則訓二個底",
+      "descriptionEn": "Concealed kong must be revealed at game end; otherwise owner pays two bases (instant pay)."
+    },
+    {
+      "id": "one-grass",
+      "nameZh": "一台草",
+      "nameEn": "All 4 Grass Flowers",
+      "tai": 5,
+      "category": "other",
+      "description": "拿到一台草時，其他三家每人俾半個底，可以再拿",
+      "descriptionEn": "Collecting one full set of wind flowers: each other player pays half a base (may continue drawing)."
+    },
+    {
+      "id": "one-flower-payout",
+      "nameZh": "一台花",
+      "nameEn": "All 4 Season Flowers",
+      "tai": 5,
+      "category": "other",
+      "description": "拿到一台花時，其他三家每人俾一個底，拿了花不能再拿草",
+      "descriptionEn": "Collecting one full set of flowers: each other player pays one base (cannot then also collect grass)."
+    },
+    {
+      "id": "mixed-flowers-grass",
+      "nameZh": "一二三",
+      "nameEn": "Mixed 1-2-3-4 Flowers and Grass",
+      "tai": 3,
+      "category": "flower",
+      "description": "做莊擲骰，擲到一二三，俾其他三家每人一個底",
+      "descriptionEn": "Four flowers numbered 1-2-3-4 across both flower and grass sets (user-confirmed; page description about dice rolls may be a source-data conflict to revisit)."
+    },
+    {
+      "id": "dice-triple",
+      "nameZh": "圍骰",
+      "nameEn": "Dice Triple (All Same)",
+      "tai": 5,
+      "category": "other",
+      "description": "做莊擲骰，擲到圍骰，其他三家每人俾莊家一個底",
+      "descriptionEn": "Dealer rolls three-of-a-kind: collects one base from each other player."
+    },
+    {
+      "id": "false-win-penalty",
+      "nameZh": "詐胡",
+      "nameEn": "False Win Penalty",
+      "tai": 30,
+      "category": "other",
+      "description": "",
+      "descriptionEn": "Penalty for falsely claiming a win."
+    },
+    {
+      "id": "missed-pung-penalty",
+      "nameZh": "叫碰不碰",
+      "nameEn": "Missed-Pung Penalty",
+      "tai": 5,
+      "category": "other",
+      "description": "食糊的人收取",
+      "descriptionEn": "Penalty for calling pung but not completing it; winner collects one base."
+    }
+  ]
+}
