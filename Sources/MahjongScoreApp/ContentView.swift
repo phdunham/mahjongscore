@@ -4,29 +4,26 @@ import MahjongCore
 
 struct ContentView: View {
 
-    // MARK: - Tile state
+    // MARK: - Persistent session settings (@AppStorage)
 
-    /// Upper row from the photo (user convention: concealed hand).
+    @AppStorage("taiBase") private var taiBase: Int = 5
+    @AppStorage("roundWindRaw") private var roundWindRaw: String = Wind.east.rawValue
+    @AppStorage("seatWindRaw") private var seatWindRaw: String = Wind.east.rawValue
+    @AppStorage("isDealer") private var isDealer: Bool = false
+    @AppStorage("preferredModelRaw") private var preferredModelRaw: String = ClaudeRecognizer.Model.sonnet46.rawValue
+    @AppStorage("singleRowIsExposed") private var singleRowIsExposed: Bool = false
+
+    // MARK: - Per-hand state
+
     @State private var concealedText: String = ""
-    /// Lower row from the photo (user convention: exposed / called melds).
     @State private var exposedText: String = ""
     @State private var flowersText: String = ""
     @State private var winningTileText: String = ""
-
-    /// When the photo had a single row, this is the placement the user chose for
-    /// those tiles (concealed by default). Toggling moves them between fields.
-    @State private var singleRowIsExposed: Bool = false
-    /// True when the last recognition returned a single-row photo; shows the toggle.
     @State private var showSingleRowToggle: Bool = false
 
-    // MARK: - Win context state
-
     @State private var selfDrawn = true
-    @State private var isDealer = false
-    @State private var roundWind: Wind = .east
-    @State private var seatWind: Wind = .east
     @State private var waitType: WaitType = .openWait
-    @State private var autoDetectedWait: WaitType?   // shown next to picker for context
+    @State private var autoDetectedWait: WaitType?
     @State private var lastTile = false
     @State private var afterKong = false
     @State private var afterKongOnKong = false
@@ -37,20 +34,47 @@ struct ContentView: View {
     @State private var earthlyHand = false
     @State private var humanHand = false
     @State private var turnsBeforeWin: String = ""
-    @State private var taiFloor: Int = 5
-
-    // MARK: - Result state
 
     @State private var scoreBreakdown: ScoreBreakdown?
     @State private var scoreError: String?
     @State private var recognitionError: String?
+    @State private var loggingNotice: String?
     @State private var isRecognizing = false
     @State private var isImporting = false
 
-    // MARK: - Services
+    // Stashed from the last successful recognition so we can log the correction
+    // pair when the user completes scoring.
+    @State private var lastPhotoData: Data?
+    @State private var lastPhotoMediaType: String = "image/jpeg"
+    @State private var lastRecognized: RecognizedTiles?
 
-    private let recognizer: ImageRecognizer? = ClaudeRecognizer.fromEnvironment()
-    private let scorer: Scorer? = try? Scorer.loadDefault()
+    // MARK: - Derived bindings / services
+
+    private var roundWind: Binding<Wind> {
+        Binding(
+            get: { Wind(rawValue: roundWindRaw) ?? .east },
+            set: { roundWindRaw = $0.rawValue }
+        )
+    }
+    private var seatWind: Binding<Wind> {
+        Binding(
+            get: { Wind(rawValue: seatWindRaw) ?? .east },
+            set: { seatWindRaw = $0.rawValue }
+        )
+    }
+    private var preferredModel: Binding<ClaudeRecognizer.Model> {
+        Binding(
+            get: { ClaudeRecognizer.Model(rawValue: preferredModelRaw) ?? .sonnet46 },
+            set: { preferredModelRaw = $0.rawValue }
+        )
+    }
+
+    private var scorer: Scorer? { try? Scorer.loadDefault() }
+    private var recognizer: ImageRecognizer? {
+        guard let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"],
+              !key.isEmpty else { return nil }
+        return ClaudeRecognizer(apiKey: key, model: preferredModel.wrappedValue)
+    }
 
     // MARK: - View
 
@@ -86,11 +110,21 @@ struct ContentView: View {
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 12) {
                 Button { isImporting = true } label: {
                     Label("Load photo…", systemImage: "photo")
                 }
                 .disabled(isRecognizing || recognizer == nil)
+                Picker("Model", selection: preferredModel) {
+                    Text("Sonnet 4.6 (fast, default)").tag(ClaudeRecognizer.Model.sonnet46)
+                    Text("Opus 4.7 (most careful)").tag(ClaudeRecognizer.Model.opus47)
+                    Text("Haiku 4.5 (cheapest)").tag(ClaudeRecognizer.Model.haiku45)
+                }
+                .labelsHidden()
+                .frame(maxWidth: 240)
+                Button { resetForNewHand() } label: {
+                    Label("Clear", systemImage: "trash")
+                }
                 if isRecognizing {
                     ProgressView().controlSize(.small)
                     Text("Recognizing…").foregroundStyle(.secondary)
@@ -103,6 +137,9 @@ struct ContentView: View {
             }
             if let err = recognitionError {
                 Text(err).font(.caption).foregroundStyle(.red)
+            }
+            if let note = loggingNotice {
+                Text(note).font(.caption2).foregroundStyle(.secondary)
             }
         }
     }
@@ -178,10 +215,10 @@ struct ContentView: View {
         GroupBox("Win context") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 16) {
-                    Stepper(value: $taiFloor, in: 0...20) {
-                        Text("Tai floor (table rule): **\(taiFloor)**")
+                    Stepper(value: $taiBase, in: 0...20) {
+                        Text("Tai base (table rule): **\(taiBase)**")
                     }
-                    .help("Minimum tai paid out regardless of actual score.")
+                    .help("Base tai added to every winning hand's total.")
                     Spacer()
                 }
                 Divider()
@@ -192,8 +229,8 @@ struct ContentView: View {
                 ) {
                     Toggle("Self-drawn (自摸)", isOn: $selfDrawn)
                     Toggle("Dealer (莊家)", isOn: $isDealer)
-                    Picker("Round wind", selection: $roundWind) { windOptions }
-                    Picker("Seat wind", selection: $seatWind) { windOptions }
+                    Picker("Round wind", selection: roundWind) { windOptions }
+                    Picker("Seat wind", selection: seatWind) { windOptions }
                     waitTypePicker
                     LabeledContent("Turns before win") {
                         TextField("optional", text: $turnsBeforeWin)
@@ -201,11 +238,11 @@ struct ContentView: View {
                             .frame(maxWidth: 80)
                     }
                     Toggle("Declared ready (聽牌)", isOn: $declaredTing)
-                Toggle("Last tile (海底)", isOn: $lastTile)
-                Toggle("After kong (槓上開花)", isOn: $afterKong)
-                Toggle("Kong on kong (摃上摃)", isOn: $afterKongOnKong)
-                Toggle("After flower (花上食胡)", isOn: $afterFlower)
-                Toggle("Robbing kong (搶槓)", isOn: $robbingKong)
+                    Toggle("Last tile (海底)", isOn: $lastTile)
+                    Toggle("After kong (槓上開花)", isOn: $afterKong)
+                    Toggle("Kong on kong (摃上摃)", isOn: $afterKongOnKong)
+                    Toggle("After flower (花上食胡)", isOn: $afterFlower)
+                    Toggle("Robbing kong (搶槓)", isOn: $robbingKong)
                     Toggle("Heavenly hand (天胡)", isOn: $heavenlyHand)
                     Toggle("Earthly hand (地胡)", isOn: $earthlyHand)
                     Toggle("Human hand (人胡)", isOn: $humanHand)
@@ -250,21 +287,15 @@ struct ContentView: View {
                 .keyboardShortcut(.return, modifiers: [.command])
                 Spacer()
                 if let breakdown = scoreBreakdown {
-                    let effective = max(breakdown.totalTai, taiFloor)
+                    let total = breakdown.totalTai + taiBase
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("Pays: \(effective) 台")
+                        Text("Pays: \(total) 台")
                             .font(.title).bold()
                             .foregroundStyle(.tint)
                             .monospacedDigit()
-                        if effective != breakdown.totalTai {
-                            Text("actual \(breakdown.totalTai) 台 · floor \(taiFloor) 台")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("actual \(breakdown.totalTai) 台")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("hand \(breakdown.totalTai) 台 + base \(taiBase) 台")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -300,6 +331,8 @@ struct ContentView: View {
     @MainActor
     private func handlePhoto(_ result: Result<URL, Error>) async {
         recognitionError = nil
+        loggingNotice = nil
+        resetForNewHand(preservePhotoState: true)
         switch result {
         case .failure(let error):
             recognitionError = "Failed to open file: \(error.localizedDescription)"
@@ -316,10 +349,14 @@ struct ContentView: View {
                 recognitionError = "Could not read \(url.lastPathComponent)."
                 return
             }
+            let ext = url.pathExtension.lowercased()
+            lastPhotoMediaType = (ext == "png") ? "image/png" : "image/jpeg"
+            lastPhotoData = data
             isRecognizing = true
             defer { isRecognizing = false }
             do {
                 let recognized = try await recognizer.recognize(imageData: data)
+                lastRecognized = recognized
                 populateFromRecognition(recognized)
             } catch {
                 recognitionError = "Recognition failed: \(error)"
@@ -329,7 +366,6 @@ struct ContentView: View {
 
     @MainActor
     private func populateFromRecognition(_ r: RecognizedTiles) {
-        // Reset everything fresh.
         concealedText = ""
         exposedText = ""
         flowersText = ""
@@ -345,7 +381,6 @@ struct ContentView: View {
             case .lower:
                 exposedText = text
             case .single:
-                // Default the single row into whichever bucket the toggle says.
                 if singleRowIsExposed {
                     exposedText = text
                 } else {
@@ -360,21 +395,49 @@ struct ContentView: View {
         }
     }
 
-    /// Move the single-row tiles between the concealed and exposed fields.
     private func moveSingleRow(toExposed: Bool) {
         if toExposed {
-            // Move concealed → exposed, keeping anything already in exposed.
-            let movedText = concealedText
+            let moved = concealedText
             concealedText = ""
-            exposedText = [exposedText, movedText]
+            exposedText = [exposedText, moved]
                 .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                 .joined(separator: " ")
         } else {
-            let movedText = exposedText
+            let moved = exposedText
             exposedText = ""
-            concealedText = [concealedText, movedText]
+            concealedText = [concealedText, moved]
                 .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                 .joined(separator: " ")
+        }
+    }
+
+    /// Reset everything except persistent session settings. Optionally keep
+    /// the stashed photo/recognition state (useful when transitioning INTO a
+    /// new recognition — we'll overwrite it).
+    private func resetForNewHand(preservePhotoState: Bool = false) {
+        concealedText = ""
+        exposedText = ""
+        flowersText = ""
+        winningTileText = ""
+        showSingleRowToggle = false
+        waitType = .openWait
+        autoDetectedWait = nil
+        lastTile = false
+        afterKong = false
+        afterKongOnKong = false
+        afterFlower = false
+        robbingKong = false
+        declaredTing = false
+        heavenlyHand = false
+        earthlyHand = false
+        humanHand = false
+        turnsBeforeWin = ""
+        scoreBreakdown = nil
+        scoreError = nil
+        loggingNotice = nil
+        if !preservePhotoState {
+            lastPhotoData = nil
+            lastRecognized = nil
         }
     }
 
@@ -382,6 +445,7 @@ struct ContentView: View {
         scoreError = nil
         scoreBreakdown = nil
         autoDetectedWait = nil
+        loggingNotice = nil
 
         guard let scorer else {
             scoreError = "Scorer not available — Rules.json failed to load."
@@ -418,7 +482,6 @@ struct ContentView: View {
                 flowers: flowers.tiles,
                 winningTile: winning
             )
-            // Auto-infer wait type and overwrite the picker.
             let inferred = WaitInference.infer(for: hand)
             waitType = inferred
             autoDetectedWait = inferred
@@ -426,8 +489,8 @@ struct ContentView: View {
             let ctx = WinContext(
                 selfDrawn: selfDrawn,
                 isDealer: isDealer,
-                roundWind: roundWind,
-                seatWind: seatWind,
+                roundWind: roundWind.wrappedValue,
+                seatWind: seatWind.wrappedValue,
                 waitType: inferred,
                 lastTile: lastTile,
                 afterKong: afterKong,
@@ -441,8 +504,41 @@ struct ContentView: View {
                 turnsBeforeWin: Int(turnsBeforeWin.trimmingCharacters(in: .whitespaces))
             )
             scoreBreakdown = scorer.score(hand: hand, context: ctx)
+
+            // If we came from a photo, save a correction entry for future training.
+            logCorrectionIfApplicable(
+                concealedTiles: concealed.tiles,
+                exposedTiles: exposed.tiles,
+                flowerTiles: flowers.tiles,
+                winningTile: winning
+            )
         } catch {
             scoreError = "Can't form a valid hand (\(concealed.tiles.count) concealed + \(exposed.tiles.count) exposed). \(error)"
+        }
+    }
+
+    private func logCorrectionIfApplicable(
+        concealedTiles: [Tile],
+        exposedTiles: [Tile],
+        flowerTiles: [Tile],
+        winningTile: Tile
+    ) {
+        guard let photoData = lastPhotoData,
+              let recognized = lastRecognized else { return }
+        do {
+            try CorrectionsLog.save(
+                photoData: photoData,
+                photoMediaType: lastPhotoMediaType,
+                recognized: recognized,
+                correctedConcealed: concealedTiles,
+                correctedExposed: exposedTiles,
+                correctedFlowers: flowerTiles,
+                correctedWinning: winningTile,
+                model: preferredModel.wrappedValue.rawValue
+            )
+            loggingNotice = "Saved to \(CorrectionsLog.directory.path) for future training."
+        } catch {
+            loggingNotice = "Couldn't save correction log: \(error)"
         }
     }
 
