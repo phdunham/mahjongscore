@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 import MahjongCore
 
@@ -47,6 +48,7 @@ struct ContentView: View {
     @State private var lastPhotoData: Data?
     @State private var lastPhotoMediaType: String = "image/jpeg"
     @State private var lastRecognized: RecognizedTiles?
+    @State private var photoExpanded: Bool = false
 
     // Settings / API key UI
     @State private var showingSettings = false
@@ -91,6 +93,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 photoSection
+                photoPreview
                 tilesSection
                 contextSection
                 scoreSection
@@ -188,6 +191,28 @@ struct ContentView: View {
             }
             if let note = loggingNotice {
                 Text(note).font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var photoPreview: some View {
+        if let data = lastPhotoData, let nsImage = NSImage(data: data) {
+            VStack(alignment: .leading, spacing: 4) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: photoExpanded ? 600 : 220)
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.secondary.opacity(0.3), lineWidth: 1)
+                    )
+                    .onTapGesture { photoExpanded.toggle() }
+                    .help("Click to \(photoExpanded ? "collapse" : "expand")")
+                Text(photoExpanded ? "Click to collapse" : "Click to expand")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -486,6 +511,7 @@ struct ContentView: View {
         if !preservePhotoState {
             lastPhotoData = nil
             lastRecognized = nil
+            photoExpanded = false
         }
     }
 

@@ -1,0 +1,1 @@
+We're running out of context. Write a detailed handoff doc I can paste into a new chat so you can pick up exactly where we left off. Include: current architecture, what's built, what's in progress, key decisions we've made, file structure, and any gotchas.
