@@ -14,3 +14,6 @@ Secrets.plist
 
 # Scratch space for development artifacts not checked in
 tmp/
+
+# .app bundle output from scripts/build-app.sh
+build/

@@ -48,6 +48,12 @@ struct ContentView: View {
     @State private var lastPhotoMediaType: String = "image/jpeg"
     @State private var lastRecognized: RecognizedTiles?
 
+    // Settings / API key UI
+    @State private var showingSettings = false
+    @State private var apiKeyInput = ""
+    /// Bumped after a settings save to force `recognizer` to re-resolve from Keychain.
+    @State private var apiKeyVersion = 0
+
     // MARK: - Derived bindings / services
 
     private var roundWind: Binding<Wind> {
@@ -71,8 +77,10 @@ struct ContentView: View {
 
     private var scorer: Scorer? { try? Scorer.loadDefault() }
     private var recognizer: ImageRecognizer? {
-        guard let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"],
-              !key.isEmpty else { return nil }
+        // Reference apiKeyVersion so SwiftUI re-evaluates this view after a
+        // Settings save writes a new key to the Keychain.
+        _ = apiKeyVersion
+        guard let key = APIKeyStore.resolveAPIKey() else { return nil }
         return ClaudeRecognizer(apiKey: key, model: preferredModel.wrappedValue)
     }
 
@@ -95,6 +103,43 @@ struct ContentView: View {
             allowedContentTypes: [.image]
         ) { result in
             Task { await handlePhoto(result) }
+        }
+        .sheet(isPresented: $showingSettings) {
+            settingsSheet
+        }
+    }
+
+    private var settingsSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("API Key").font(.title2).bold()
+            Text("Your Anthropic API key is stored in the macOS Keychain. It's used only to recognize tiles from photos.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            SecureField("sk-ant-api03-…", text: $apiKeyInput)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Button("Delete stored key") {
+                    APIKeyStore.clear()
+                    apiKeyInput = ""
+                    apiKeyVersion += 1
+                }
+                .disabled(APIKeyStore.load() == nil)
+                Spacer()
+                Button("Cancel") { showingSettings = false }
+                Button("Save") {
+                    try? APIKeyStore.save(apiKeyInput)
+                    apiKeyVersion += 1
+                    showingSettings = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(apiKeyInput.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 460)
+        .onAppear {
+            apiKeyInput = APIKeyStore.load() ?? ""
         }
     }
 
@@ -125,6 +170,9 @@ struct ContentView: View {
                 Button { resetForNewHand() } label: {
                     Label("Clear", systemImage: "trash")
                 }
+                Button { showingSettings = true } label: {
+                    Label("API Key…", systemImage: "key")
+                }
                 if isRecognizing {
                     ProgressView().controlSize(.small)
                     Text("Recognizing…").foregroundStyle(.secondary)
@@ -132,7 +180,7 @@ struct ContentView: View {
                 Spacer()
             }
             if recognizer == nil {
-                Text("ANTHROPIC_API_KEY not set — photo recognition disabled. Enter tiles manually below.")
+                Text("No API key set — photo recognition disabled. Click \"API Key…\" to add one, or enter tiles manually below.")
                     .font(.caption).foregroundStyle(.orange)
             }
             if let err = recognitionError {

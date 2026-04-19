@@ -14,7 +14,9 @@
       "Bash(swift test *)",
       "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/pdunham/work/mahjongscore/Sources/MahjongCore/Resources/Rules.json'\\)\\); bad=[p for p in d['patterns'] if not isinstance\\(p['tai'], int\\)]; print\\('Total patterns:', len\\(d['patterns']\\)\\); print\\('Non-integer tai rows:', len\\(bad\\)\\); [print\\(' -', p['nameZh'], repr\\(p['tai']\\)\\) for p in bad]\")",
       "Bash(swift build *)",
-      "Bash(kill 35947)"
+      "Bash(kill 35947)",
+      "Bash(chmod +x /Users/pdunham/work/mahjongscore/scripts/build-app.sh)",
+      "Bash(bash scripts/build-app.sh)"
     ]
   }
 }
