@@ -53,11 +53,11 @@ enum CorrectionsLog {
                 rows: recognized.rows.map { row in
                     Entry.Row(
                         placement: row.placement.rawValue,
-                        tiles: row.tiles.map(\.notation)
+                        tiles: row.tiles.map { $0.tile.notation }
                     )
                 },
-                flowers: recognized.flowers.map(\.notation),
-                winningTile: recognized.winningTile?.notation
+                flowers: recognized.flowers.map { $0.tile.notation },
+                winningTile: recognized.winningTile?.tile.notation
             ),
             corrected: Entry.Corrected(
                 concealed: correctedConcealed.map(\.notation),

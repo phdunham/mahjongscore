@@ -16,7 +16,11 @@
       "Bash(swift build *)",
       "Bash(kill 35947)",
       "Bash(chmod +x /Users/pdunham/work/mahjongscore/scripts/build-app.sh)",
-      "Bash(bash scripts/build-app.sh)"
+      "Bash(bash scripts/build-app.sh)",
+      "Bash(chmod +x /Users/pdunham/work/mahjongscore/scripts/init-training-dirs.sh /Users/pdunham/work/mahjongscore/scripts/check-training-data.sh)",
+      "Bash(bash /Users/pdunham/work/mahjongscore/scripts/init-training-dirs.sh)",
+      "Bash(bash /Users/pdunham/work/mahjongscore/scripts/check-training-data.sh)",
+      "Bash(awk '/extension CreateML.MLImageClassifier|MLImageClassifier\\\\.ModelParameters/,/^}/' /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk/System/Library/Frameworks/CreateML.framework/Versions/A/Modules/CreateML.swiftmodule/arm64e-apple-macos.swiftinterface)"
     ]
   }
 }

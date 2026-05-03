@@ -4,6 +4,7 @@
 Package.resolved
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
+.claude/worktrees
 xcuserdata/
 .env
 key.*
@@ -17,3 +18,7 @@ tmp/
 
 # .app bundle output from scripts/build-app.sh
 build/
+
+# Training data — too large to commit. README.md inside is committed separately.
+training-data/*/
+!training-data/README.md

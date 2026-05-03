@@ -7,6 +7,9 @@ let package = Package(
     products: [
         .library(name: "MahjongCore", targets: ["MahjongCore"]),
         .executable(name: "MahjongScoreApp", targets: ["MahjongScoreApp"]),
+        .executable(name: "TileCam", targets: ["TileCam"]),
+        .executable(name: "ClassifyTile", targets: ["ClassifyTile"]),
+        .executable(name: "BenchmarkClaude", targets: ["BenchmarkClaude"]),
     ],
     targets: [
         .target(
@@ -19,6 +22,15 @@ let package = Package(
         ),
         .executableTarget(
             name: "MahjongScoreApp",
+            dependencies: ["MahjongCore"]
+        ),
+        .executableTarget(name: "TileCam"),
+        .executableTarget(
+            name: "ClassifyTile",
+            dependencies: ["MahjongCore"]
+        ),
+        .executableTarget(
+            name: "BenchmarkClaude",
             dependencies: ["MahjongCore"]
         ),
     ]

@@ -5,7 +5,7 @@ import MahjongCore
 
 struct ContentView: View {
 
-    // MARK: - Persistent session settings (@AppStorage)
+    // MARK: - Persistent session settings
 
     @AppStorage("taiBase") private var taiBase: Int = 5
     @AppStorage("roundWindRaw") private var roundWindRaw: String = Wind.east.rawValue
@@ -13,14 +13,20 @@ struct ContentView: View {
     @AppStorage("isDealer") private var isDealer: Bool = false
     @AppStorage("preferredModelRaw") private var preferredModelRaw: String = ClaudeRecognizer.Model.sonnet46.rawValue
     @AppStorage("singleRowIsExposed") private var singleRowIsExposed: Bool = false
+    @AppStorage("recognizerModeRaw") private var recognizerModeRaw: String = RecognizerMode.claude.rawValue
+
+    @StateObject private var trainingCoordinator = TrainingCoordinator()
+    @State private var showingTraining: Bool = false
 
     // MARK: - Per-hand state
 
-    @State private var concealedText: String = ""
-    @State private var exposedText: String = ""
-    @State private var flowersText: String = ""
-    @State private var winningTileText: String = ""
-    @State private var showSingleRowToggle: Bool = false
+    @State private var concealed: [IdentifiedTile] = []
+    @State private var exposed: [IdentifiedTile] = []
+    @State private var flowers: [IdentifiedTile] = []
+    @State private var winningTileId: UUID?
+    @State private var selectedTileId: UUID?
+    @State private var pickerMode: PickerMode?
+    @State private var showSingleRowToggle = false
 
     @State private var selfDrawn = true
     @State private var waitType: WaitType = .openWait
@@ -43,20 +49,16 @@ struct ContentView: View {
     @State private var isRecognizing = false
     @State private var isImporting = false
 
-    // Stashed from the last successful recognition so we can log the correction
-    // pair when the user completes scoring.
     @State private var lastPhotoData: Data?
     @State private var lastPhotoMediaType: String = "image/jpeg"
     @State private var lastRecognized: RecognizedTiles?
-    @State private var photoExpanded: Bool = false
+    @State private var showingPhotoModal: Bool = false
 
-    // Settings / API key UI
     @State private var showingSettings = false
     @State private var apiKeyInput = ""
-    /// Bumped after a settings save to force `recognizer` to re-resolve from Keychain.
     @State private var apiKeyVersion = 0
 
-    // MARK: - Derived bindings / services
+    // MARK: - Bindings / services
 
     private var roundWind: Binding<Wind> {
         Binding(
@@ -78,42 +80,484 @@ struct ContentView: View {
     }
 
     private var scorer: Scorer? { try? Scorer.loadDefault() }
-    private var recognizer: ImageRecognizer? {
-        // Reference apiKeyVersion so SwiftUI re-evaluates this view after a
-        // Settings save writes a new key to the Keychain.
+
+    private var recognizerMode: RecognizerMode {
+        RecognizerMode(rawValue: recognizerModeRaw) ?? .claude
+    }
+    private var claudeRecognizer: ClaudeRecognizer? {
         _ = apiKeyVersion
         guard let key = APIKeyStore.resolveAPIKey() else { return nil }
         return ClaudeRecognizer(apiKey: key, model: preferredModel.wrappedValue)
     }
+    private var recognizer: ImageRecognizer? {
+        switch recognizerMode {
+        case .claude:
+            return claudeRecognizer
+        case .local:
+            if let classifier = try? TileClassifier.load() {
+                return LocalRecognizer(classifier: classifier, fallback: claudeRecognizer)
+            }
+            return claudeRecognizer
+        }
+    }
 
-    // MARK: - View
+    // MARK: - Body
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header
-                photoSection
-                photoPreview
-                tilesSection
-                contextSection
-                scoreSection
-            }
-            .padding(24)
+        VStack(spacing: DT.Spacing.sm) {
+            topSection
+            Divider()
+            middleSection
+            Divider()
+            bottomSection
         }
-        .frame(minWidth: 780, minHeight: 640)
+        .padding(DT.Spacing.md)
+        .frame(minWidth: 1180, minHeight: 760)
+        .toolbar { toolbarContent }
+        .navigationTitle("Mahjong Score")
         .fileImporter(
             isPresented: $isImporting,
             allowedContentTypes: [.image]
         ) { result in
             Task { await handlePhoto(result) }
         }
-        .sheet(isPresented: $showingSettings) {
-            settingsSheet
+        .sheet(isPresented: $showingSettings) { settingsSheet }
+        .sheet(isPresented: $showingTraining) {
+            TrainingSheet(coordinator: trainingCoordinator, isPresented: $showingTraining)
+        }
+        .sheet(item: $pickerMode) { mode in
+            tilePickerSheet(for: mode)
+        }
+        .sheet(isPresented: $showingPhotoModal) {
+            photoModal
         }
     }
 
+    @ViewBuilder
+    private var photoModal: some View {
+        if let data = lastPhotoData, let nsImage = NSImage(data: data) {
+            VStack(spacing: DT.Spacing.sm) {
+                HStack {
+                    Text("Hand photo")
+                        .font(.title2).bold()
+                    Spacer()
+                    Button("Close", role: .cancel) {
+                        showingPhotoModal = false
+                    }
+                    .keyboardShortcut(.cancelAction)
+                }
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: DT.Radius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DT.Radius.md)
+                            .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+                    )
+                    .onTapGesture { showingPhotoModal = false }
+                    .help("Click photo (or press Esc) to close")
+            }
+            .padding(DT.Spacing.lg)
+            .frame(
+                minWidth: 1000, idealWidth: 1280,
+                minHeight: 760, idealHeight: 960
+            )
+        }
+    }
+
+    private func tilePickerSheet(for mode: PickerMode) -> some View {
+        let isReplace = mode == .replaceSelected
+        let selection = isReplace ? currentSelection() : nil
+
+        return TilePickerView(
+            title: pickerTitle(for: mode),
+            currentTile: selection?.tile,
+            isCurrentWinning: selection?.isWinning ?? false,
+            onPick: { tile in handlePick(mode: mode, tile: tile) },
+            onToggleWinning: (isReplace && (selection?.canBeWinning ?? false))
+                ? {
+                    toggleWinning()
+                    closePicker()
+                }
+                : nil,
+            onDelete: isReplace
+                ? {
+                    deleteSelected()
+                    closePicker()
+                }
+                : nil,
+            onCancel: { closePicker() }
+        )
+    }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup {
+            Button { isImporting = true } label: {
+                Label("Load photo…", systemImage: "photo")
+            }
+            .disabled(isRecognizing || recognizer == nil)
+            .help(recognizer == nil ? "Set an API key or train a local model first" : "Load a winning-hand photo")
+
+            if isRecognizing {
+                ProgressView().controlSize(.small)
+            }
+
+            Picker("Recognizer", selection: Binding(
+                get: { recognizerMode },
+                set: { recognizerModeRaw = $0.rawValue }
+            )) {
+                Text("Claude").tag(RecognizerMode.claude)
+                Text("Local").tag(RecognizerMode.local)
+            }
+            .labelsHidden()
+            .frame(maxWidth: 120)
+
+            if recognizerMode == .claude {
+                Picker("Model", selection: preferredModel) {
+                    Text("Sonnet 4.6").tag(ClaudeRecognizer.Model.sonnet46)
+                    Text("Opus 4.7").tag(ClaudeRecognizer.Model.opus47)
+                    Text("Haiku 4.5").tag(ClaudeRecognizer.Model.haiku45)
+                }
+                .labelsHidden()
+                .frame(maxWidth: 140)
+            }
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button { resetForNewHand() } label: {
+                Label("Clear", systemImage: "trash")
+            }
+            .help("Reset this hand")
+
+            Button {
+                trainingCoordinator.refreshStats()
+                showingTraining = true
+            } label: {
+                Label("Train", systemImage: "brain")
+            }
+            .help("Training data status and on-device model training")
+
+            Button {
+                apiKeyInput = APIKeyStore.load() ?? ""
+                showingSettings = true
+            } label: {
+                Label("API Key", systemImage: "key")
+            }
+            .help("Manage API key")
+        }
+    }
+
+    // MARK: - Top section: photo + tile rows
+
+    private var topSection: some View {
+        HStack(alignment: .top, spacing: DT.Spacing.md) {
+            photoSideView
+            VStack(alignment: .leading, spacing: DT.Spacing.sm) {
+                TileRow(
+                    label: "Concealed",
+                    placeholder: "Load a photo or tap + to add tiles",
+                    tiles: $concealed,
+                    selectedTileId: selectedTileId,
+                    winningTileId: winningTileId,
+                    onTileTap: { id in handleTileTap(id) },
+                    onAddRequested: { pickerMode = .addToConcealed }
+                )
+                TileRow(
+                    label: "Exposed",
+                    placeholder: "Nothing called",
+                    tiles: $exposed,
+                    selectedTileId: selectedTileId,
+                    winningTileId: winningTileId,
+                    onTileTap: { id in handleTileTap(id) },
+                    onAddRequested: { pickerMode = .addToExposed }
+                )
+                TileRow(
+                    label: "Flowers",
+                    placeholder: "No flowers",
+                    tiles: $flowers,
+                    selectedTileId: selectedTileId,
+                    winningTileId: winningTileId,
+                    onTileTap: { id in handleTileTap(id) },
+                    onAddRequested: { pickerMode = .addToFlowers }
+                )
+                if showSingleRowToggle {
+                    HStack(spacing: DT.Spacing.sm) {
+                        Text("Single-row photo:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: $singleRowIsExposed) {
+                            Text("Concealed").tag(false)
+                            Text("Exposed").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 180)
+                        .onChange(of: singleRowIsExposed) { _, newValue in
+                            moveSingleRow(toExposed: newValue)
+                        }
+                    }
+                }
+                if let err = recognitionError {
+                    Text(err).font(.caption).foregroundStyle(.red).lineLimit(1)
+                } else if let note = loggingNotice {
+                    Text(note).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+
+    @ViewBuilder
+    private var photoSideView: some View {
+        let size: CGFloat = 320
+        if let data = lastPhotoData, let nsImage = NSImage(data: data) {
+            VStack(spacing: 4) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+                    .background(
+                        RoundedRectangle(cornerRadius: DT.Radius.md)
+                            .fill(Color.secondary.opacity(0.05))
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: DT.Radius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DT.Radius.md)
+                            .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+                    )
+                    .onTapGesture { showingPhotoModal = true }
+                    .help("Click to view full size")
+                Text("click photo to enlarge")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        } else {
+            RoundedRectangle(cornerRadius: DT.Radius.md)
+                .fill(Color.secondary.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DT.Radius.md)
+                        .strokeBorder(
+                            Color.secondary.opacity(0.25),
+                            style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                        )
+                )
+                .overlay(
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo")
+                            .font(.largeTitle)
+                            .foregroundStyle(.tertiary)
+                        Text(recognizer == nil ? "No API key" : "No photo loaded")
+                            .font(.callout)
+                            .foregroundStyle(.tertiary)
+                    }
+                )
+                .frame(width: size, height: size)
+        }
+    }
+
+    // MARK: - Middle section: compact options
+
+    private var middleSection: some View {
+        VStack(alignment: .leading, spacing: DT.Spacing.sm) {
+            // First row: pickers and stepper
+            HStack(spacing: DT.Spacing.md) {
+                labeledPicker("Round", selection: roundWind) { windOptions }
+                labeledPicker("Seat", selection: seatWind) { windOptions }
+                labeledPicker("Wait", selection: $waitType) { waitOptions }
+                LabeledContent {
+                    Stepper(value: $taiBase, in: 0...20) {
+                        Text("\(taiBase)").monospacedDigit().frame(minWidth: 18)
+                    }
+                } label: {
+                    Text("Base:").font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: 120)
+                LabeledContent {
+                    TextField("", text: $turnsBeforeWin)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 48)
+                } label: {
+                    Text("Turns:").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let auto = autoDetectedWait {
+                    Text("wait auto: \(shortWaitLabel(auto))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            // Toggles in a compact 4-column grid
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), alignment: .leading),
+                    GridItem(.flexible(), alignment: .leading),
+                    GridItem(.flexible(), alignment: .leading),
+                    GridItem(.flexible(), alignment: .leading),
+                ],
+                alignment: .leading,
+                spacing: 2
+            ) {
+                Toggle("Self-drawn 自摸", isOn: $selfDrawn)
+                Toggle("Dealer 莊家", isOn: $isDealer)
+                Toggle("Ting 聽牌", isOn: $declaredTing)
+                Toggle("Last tile 海底", isOn: $lastTile)
+                Toggle("After kong 槓上", isOn: $afterKong)
+                Toggle("Kong-on-kong 摃上摃", isOn: $afterKongOnKong)
+                Toggle("After flower 花上", isOn: $afterFlower)
+                Toggle("Robbing kong 搶槓", isOn: $robbingKong)
+                Toggle("Heavenly 天胡", isOn: $heavenlyHand)
+                Toggle("Earthly 地胡", isOn: $earthlyHand)
+                Toggle("Human 人胡", isOn: $humanHand)
+            }
+            .toggleStyle(.checkbox)
+            .font(.callout)
+        }
+    }
+
+    private func labeledPicker<S: Hashable, C: View>(
+        _ label: String,
+        selection: Binding<S>,
+        @ViewBuilder content: () -> C
+    ) -> some View {
+        HStack(spacing: 4) {
+            Text("\(label):").font(.caption).foregroundStyle(.secondary)
+            Picker("", selection: selection) { content() }
+                .labelsHidden()
+                .pickerStyle(.menu)
+        }
+    }
+
+    @ViewBuilder
+    private var windOptions: some View {
+        Text("East 東").tag(Wind.east)
+        Text("South 南").tag(Wind.south)
+        Text("West 西").tag(Wind.west)
+        Text("North 北").tag(Wind.north)
+    }
+
+    @ViewBuilder
+    private var waitOptions: some View {
+        Text("Open 兩面").tag(WaitType.openWait)
+        Text("Closed 嵌張").tag(WaitType.closedWait)
+        Text("Edge 邊張").tag(WaitType.edgeWait)
+        Text("Pair 對碰").tag(WaitType.pairWait)
+        Text("Single 單釣").tag(WaitType.singleWait)
+    }
+
+    // MARK: - Bottom section: total + awards + Score button
+
+    private var bottomSection: some View {
+        HStack(alignment: .top, spacing: DT.Spacing.md) {
+            totalCard
+            Divider()
+            awardsColumn
+            Spacer(minLength: 0)
+            scoreButtonColumn
+        }
+    }
+
+    private var totalCard: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let breakdown = scoreBreakdown {
+                let total = breakdown.totalTai + taiBase
+                Text("\(total)")
+                    .font(.system(size: 52, weight: .bold, design: .rounded))
+                    .foregroundStyle(.tint)
+                    .monospacedDigit()
+                Text("台 total").font(.caption).foregroundStyle(.secondary)
+                Text("hand \(breakdown.totalTai) · base \(taiBase)")
+                    .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
+            } else {
+                Text("—")
+                    .font(.system(size: 52, weight: .bold, design: .rounded))
+                    .foregroundStyle(.tertiary)
+                Text(scoreError == nil ? "Click Score to tally" : "check errors →")
+                    .font(.caption).foregroundStyle(.tertiary)
+            }
+        }
+        .frame(minWidth: 140, alignment: .leading)
+    }
+
+    private var awardsColumn: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let err = scoreError {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text(err)
+                            .font(.callout)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 4)
+                }
+                if let breakdown = scoreBreakdown {
+                    Text("\(breakdown.awards.count) patterns")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    ForEach(
+                        breakdown.awards.sorted(by: { $0.totalTai > $1.totalTai }),
+                        id: \.ruleId
+                    ) { award in
+                        HStack(spacing: 6) {
+                            Text(award.nameZh)
+                                .font(.callout.weight(.medium))
+                                .frame(minWidth: 60, alignment: .leading)
+                            Text(award.nameEn)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(award.count > 1
+                                 ? "\(award.taiPerCount)×\(award.count)=\(award.totalTai)"
+                                 : "\(award.totalTai)")
+                            .font(.callout.monospacedDigit())
+                            Text("台")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if scoreBreakdown == nil, scoreError == nil {
+                    Text("Mark a winning tile and hit Score to see the breakdown.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.vertical, DT.Spacing.sm)
+                }
+            }
+            .padding(.trailing, 4)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var scoreButtonColumn: some View {
+        VStack(alignment: .trailing, spacing: DT.Spacing.xs) {
+            Button {
+                computeScore()
+            } label: {
+                Label("Score hand", systemImage: "sparkles")
+                    .font(.body.weight(.semibold))
+                    .padding(.horizontal, DT.Spacing.sm)
+                    .padding(.vertical, DT.Spacing.xs)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.return, modifiers: [.command])
+            Text("⌘↩")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(minWidth: 120)
+    }
+
+    // MARK: - Settings sheet
+
     private var settingsSheet: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DT.Spacing.md) {
             Text("API Key").font(.title2).bold()
             Text("Your Anthropic API key is stored in the macOS Keychain. It's used only to recognize tiles from photos.")
                 .font(.callout)
@@ -139,264 +583,8 @@ struct ContentView: View {
                 .disabled(apiKeyInput.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(24)
-        .frame(minWidth: 460)
-        .onAppear {
-            apiKeyInput = APIKeyStore.load() ?? ""
-        }
-    }
-
-    // MARK: - Sections
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Mahjong Score").font(.largeTitle).bold()
-            Text("Upper row = concealed, lower row = exposed. The half-raised tile is the winner.")
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var photoSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Button { isImporting = true } label: {
-                    Label("Load photo…", systemImage: "photo")
-                }
-                .disabled(isRecognizing || recognizer == nil)
-                Picker("Model", selection: preferredModel) {
-                    Text("Sonnet 4.6 (fast, default)").tag(ClaudeRecognizer.Model.sonnet46)
-                    Text("Opus 4.7 (most careful)").tag(ClaudeRecognizer.Model.opus47)
-                    Text("Haiku 4.5 (cheapest)").tag(ClaudeRecognizer.Model.haiku45)
-                }
-                .labelsHidden()
-                .frame(maxWidth: 240)
-                Button { resetForNewHand() } label: {
-                    Label("Clear", systemImage: "trash")
-                }
-                Button { showingSettings = true } label: {
-                    Label("API Key…", systemImage: "key")
-                }
-                if isRecognizing {
-                    ProgressView().controlSize(.small)
-                    Text("Recognizing…").foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            if recognizer == nil {
-                Text("No API key set — photo recognition disabled. Click \"API Key…\" to add one, or enter tiles manually below.")
-                    .font(.caption).foregroundStyle(.orange)
-            }
-            if let err = recognitionError {
-                Text(err).font(.caption).foregroundStyle(.red)
-            }
-            if let note = loggingNotice {
-                Text(note).font(.caption2).foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var photoPreview: some View {
-        if let data = lastPhotoData, let nsImage = NSImage(data: data) {
-            VStack(alignment: .leading, spacing: 4) {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: photoExpanded ? 600 : 220)
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color.secondary.opacity(0.3), lineWidth: 1)
-                    )
-                    .onTapGesture { photoExpanded.toggle() }
-                    .help("Click to \(photoExpanded ? "collapse" : "expand")")
-                Text(photoExpanded ? "Click to collapse" : "Click to expand")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var tilesSection: some View {
-        GroupBox("Tiles") {
-            VStack(alignment: .leading, spacing: 10) {
-                tileField(label: "Concealed (upper row)", text: $concealedText,
-                          placeholder: "1m 2m 3m 4m 5m 6m 7p 8p 9p 1s 2s 3s 3s 3s")
-                glyphPreview(concealedText)
-
-                tileField(label: "Exposed (lower row)", text: $exposedText,
-                          placeholder: "5p 5p 5p (empty if nothing called)")
-                glyphPreview(exposedText)
-
-                if showSingleRowToggle {
-                    HStack {
-                        Text("Single-row photo — treat as:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Picker("", selection: $singleRowIsExposed) {
-                            Text("Concealed").tag(false)
-                            Text("Exposed").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 220)
-                        .onChange(of: singleRowIsExposed) { _, newValue in
-                            moveSingleRow(toExposed: newValue)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                tileField(label: "Flowers", text: $flowersText, placeholder: "1f 6f")
-                glyphPreview(flowersText)
-
-                tileField(label: "Winning tile", text: $winningTileText,
-                          placeholder: "3s", maxWidth: 140)
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    private func tileField(label: String, text: Binding<String>, placeholder: String, maxWidth: CGFloat? = nil) -> some View {
-        LabeledContent(label) {
-            TextField(placeholder, text: text)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: maxWidth)
-        }
-    }
-
-    @ViewBuilder
-    private func glyphPreview(_ text: String) -> some View {
-        let parsed = parseTiles(text)
-        if !parsed.tiles.isEmpty || !parsed.unknown.isEmpty {
-            VStack(alignment: .leading, spacing: 2) {
-                if !parsed.tiles.isEmpty {
-                    HStack(spacing: 3) {
-                        ForEach(Array(parsed.tiles.enumerated()), id: \.offset) { _, tile in
-                            Text(tile.unicode).font(.system(size: 28))
-                        }
-                    }
-                }
-                if !parsed.unknown.isEmpty {
-                    Text("Unknown: \(parsed.unknown.joined(separator: ", "))")
-                        .font(.caption).foregroundStyle(.orange)
-                }
-            }
-        }
-    }
-
-    private var contextSection: some View {
-        GroupBox("Win context") {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 16) {
-                    Stepper(value: $taiBase, in: 0...20) {
-                        Text("Tai base (table rule): **\(taiBase)**")
-                    }
-                    .help("Base tai added to every winning hand's total.")
-                    Spacer()
-                }
-                Divider()
-                LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible())],
-                    alignment: .leading,
-                    spacing: 10
-                ) {
-                    Toggle("Self-drawn (自摸)", isOn: $selfDrawn)
-                    Toggle("Dealer (莊家)", isOn: $isDealer)
-                    Picker("Round wind", selection: roundWind) { windOptions }
-                    Picker("Seat wind", selection: seatWind) { windOptions }
-                    waitTypePicker
-                    LabeledContent("Turns before win") {
-                        TextField("optional", text: $turnsBeforeWin)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 80)
-                    }
-                    Toggle("Declared ready (聽牌)", isOn: $declaredTing)
-                    Toggle("Last tile (海底)", isOn: $lastTile)
-                    Toggle("After kong (槓上開花)", isOn: $afterKong)
-                    Toggle("Kong on kong (摃上摃)", isOn: $afterKongOnKong)
-                    Toggle("After flower (花上食胡)", isOn: $afterFlower)
-                    Toggle("Robbing kong (搶槓)", isOn: $robbingKong)
-                    Toggle("Heavenly hand (天胡)", isOn: $heavenlyHand)
-                    Toggle("Earthly hand (地胡)", isOn: $earthlyHand)
-                    Toggle("Human hand (人胡)", isOn: $humanHand)
-                }
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    private var waitTypePicker: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Picker("Wait type", selection: $waitType) {
-                Text("Open (兩面)").tag(WaitType.openWait)
-                Text("Closed (嵌張)").tag(WaitType.closedWait)
-                Text("Edge (邊張)").tag(WaitType.edgeWait)
-                Text("Pair (對碰)").tag(WaitType.pairWait)
-                Text("Single (單釣)").tag(WaitType.singleWait)
-            }
-            if let auto = autoDetectedWait {
-                Text("auto-detected: \(waitTypeLabel(auto))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var windOptions: some View {
-        Text("East (東)").tag(Wind.east)
-        Text("South (南)").tag(Wind.south)
-        Text("West (西)").tag(Wind.west)
-        Text("North (北)").tag(Wind.north)
-    }
-
-    private var scoreSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Button { computeScore() } label: {
-                    Label("Score hand", systemImage: "sparkles")
-                }
-                .controlSize(.large)
-                .keyboardShortcut(.return, modifiers: [.command])
-                Spacer()
-                if let breakdown = scoreBreakdown {
-                    let total = breakdown.totalTai + taiBase
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Pays: \(total) 台")
-                            .font(.title).bold()
-                            .foregroundStyle(.tint)
-                            .monospacedDigit()
-                        Text("hand \(breakdown.totalTai) 台 + base \(taiBase) 台")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            if let scoreError {
-                Text(scoreError).foregroundStyle(.red)
-            }
-            if let breakdown = scoreBreakdown {
-                GroupBox("Breakdown (\(breakdown.awards.count) awards)") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(
-                            breakdown.awards.sorted(by: { $0.totalTai > $1.totalTai }),
-                            id: \.ruleId
-                        ) { award in
-                            HStack {
-                                Text(award.nameZh).font(.body.monospacedDigit())
-                                Text("  \(award.nameEn)").foregroundStyle(.secondary)
-                                Spacer()
-                                Text(award.count > 1
-                                     ? "\(award.taiPerCount) × \(award.count) = \(award.totalTai) 台"
-                                     : "\(award.totalTai) 台")
-                                .monospacedDigit()
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-        }
+        .padding(DT.Spacing.lg)
+        .frame(minWidth: 480)
     }
 
     // MARK: - Actions
@@ -439,59 +627,57 @@ struct ContentView: View {
 
     @MainActor
     private func populateFromRecognition(_ r: RecognizedTiles) {
-        concealedText = ""
-        exposedText = ""
-        flowersText = ""
-        winningTileText = ""
+        concealed = []
+        exposed = []
+        flowers = []
+        winningTileId = nil
+        selectedTileId = nil
         showSingleRowToggle = false
         autoDetectedWait = nil
 
         for row in r.rows {
-            let text = row.tiles.map(\.notation).joined(separator: " ")
+            let idTiles = row.tiles.map { IdentifiedTile($0.tile, bbox: $0.bbox) }
             switch row.placement {
             case .upper:
-                concealedText = text
+                concealed = idTiles
             case .lower:
-                exposedText = text
+                exposed = idTiles
             case .single:
                 if singleRowIsExposed {
-                    exposedText = text
+                    exposed = idTiles
                 } else {
-                    concealedText = text
+                    concealed = idTiles
                 }
                 showSingleRowToggle = true
             }
         }
-        flowersText = r.flowers.map(\.notation).joined(separator: " ")
+        flowers = r.flowers.map { IdentifiedTile($0.tile, bbox: $0.bbox) }
+
         if let w = r.winningTile {
-            winningTileText = w.notation
+            if let match = concealed.first(where: { $0.tile == w.tile }) {
+                winningTileId = match.id
+            } else if let match = exposed.first(where: { $0.tile == w.tile }) {
+                winningTileId = match.id
+            }
         }
     }
 
     private func moveSingleRow(toExposed: Bool) {
         if toExposed {
-            let moved = concealedText
-            concealedText = ""
-            exposedText = [exposedText, moved]
-                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                .joined(separator: " ")
+            exposed.append(contentsOf: concealed)
+            concealed = []
         } else {
-            let moved = exposedText
-            exposedText = ""
-            concealedText = [concealedText, moved]
-                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                .joined(separator: " ")
+            concealed.append(contentsOf: exposed)
+            exposed = []
         }
     }
 
-    /// Reset everything except persistent session settings. Optionally keep
-    /// the stashed photo/recognition state (useful when transitioning INTO a
-    /// new recognition — we'll overwrite it).
     private func resetForNewHand(preservePhotoState: Bool = false) {
-        concealedText = ""
-        exposedText = ""
-        flowersText = ""
-        winningTileText = ""
+        concealed = []
+        exposed = []
+        flowers = []
+        winningTileId = nil
+        selectedTileId = nil
         showSingleRowToggle = false
         waitType = .openWait
         autoDetectedWait = nil
@@ -511,7 +697,6 @@ struct ContentView: View {
         if !preservePhotoState {
             lastPhotoData = nil
             lastRecognized = nil
-            photoExpanded = false
         }
     }
 
@@ -526,34 +711,31 @@ struct ContentView: View {
             return
         }
 
-        let concealed = parseTiles(concealedText)
-        guard concealed.unknown.isEmpty else {
-            scoreError = "Unknown concealed tiles: \(concealed.unknown.joined(separator: ", "))"
+        let concealedTiles = concealed.map(\.tile)
+        let exposedTiles = exposed.map(\.tile)
+        let flowerTiles = flowers.map(\.tile)
+
+        guard flowerTiles.allSatisfy({ $0.isFlower }) else {
+            scoreError = "The Flowers row contains non-flower tiles. Fix them before scoring."
             return
         }
-        let exposed = parseTiles(exposedText)
-        guard exposed.unknown.isEmpty else {
-            scoreError = "Unknown exposed tiles: \(exposed.unknown.joined(separator: ", "))"
-            return
-        }
-        let flowers = parseTiles(flowersText)
-        guard flowers.unknown.isEmpty else {
-            scoreError = "Unknown flower tiles: \(flowers.unknown.joined(separator: ", "))"
-            return
-        }
-        let winningTrimmed = winningTileText.trimmingCharacters(in: .whitespaces)
-        guard !winningTrimmed.isEmpty,
-              let winning = try? Tile(winningTrimmed)
-        else {
-            scoreError = "Enter the winning tile (e.g. '3s')."
+
+        let winning: Tile? = {
+            guard let id = winningTileId else { return nil }
+            if let t = concealed.first(where: { $0.id == id })?.tile { return t }
+            if let t = exposed.first(where: { $0.id == id })?.tile { return t }
+            return nil
+        }()
+        guard let winning else {
+            scoreError = "Mark a winning tile first: click a tile and choose 'Mark as winning tile'."
             return
         }
 
         do {
             let hand = try Decomposer.decomposeWithConcealment(
-                concealedTiles: concealed.tiles,
-                exposedTiles: exposed.tiles,
-                flowers: flowers.tiles,
+                concealedTiles: concealedTiles,
+                exposedTiles: exposedTiles,
+                flowers: flowerTiles,
                 winningTile: winning
             )
             let inferred = WaitInference.infer(for: hand)
@@ -579,15 +761,14 @@ struct ContentView: View {
             )
             scoreBreakdown = scorer.score(hand: hand, context: ctx)
 
-            // If we came from a photo, save a correction entry for future training.
             logCorrectionIfApplicable(
-                concealedTiles: concealed.tiles,
-                exposedTiles: exposed.tiles,
-                flowerTiles: flowers.tiles,
+                concealedTiles: concealedTiles,
+                exposedTiles: exposedTiles,
+                flowerTiles: flowerTiles,
                 winningTile: winning
             )
         } catch {
-            scoreError = "Can't form a valid hand (\(concealed.tiles.count) concealed + \(exposed.tiles.count) exposed). \(error)"
+            scoreError = "Can't form a valid hand (\(concealedTiles.count) concealed + \(exposedTiles.count) exposed). \(error)"
         }
     }
 
@@ -599,6 +780,8 @@ struct ContentView: View {
     ) {
         guard let photoData = lastPhotoData,
               let recognized = lastRecognized else { return }
+
+        var notes: [String] = []
         do {
             try CorrectionsLog.save(
                 photoData: photoData,
@@ -610,34 +793,156 @@ struct ContentView: View {
                 correctedWinning: winningTile,
                 model: preferredModel.wrappedValue.rawValue
             )
-            loggingNotice = "Saved to \(CorrectionsLog.directory.path) for future training."
+            notes.append("log saved")
         } catch {
-            loggingNotice = "Couldn't save correction log: \(error)"
+            notes.append("log failed")
         }
-    }
 
-    private func parseTiles(_ s: String) -> (tiles: [Tile], unknown: [String]) {
-        var tiles: [Tile] = []
-        var unknown: [String] = []
-        for raw in s.split(whereSeparator: { $0.isWhitespace || $0 == "," }) {
-            let token = String(raw)
-            if token.isEmpty { continue }
-            if let tile = try? Tile(token) {
-                tiles.append(tile)
+        let allIdTiles = concealed + exposed + flowers
+        var labeled: [TrainingDataSaver.LabeledBBox] = []
+        var unbboxed = 0
+        for idTile in allIdTiles {
+            if let bbox = idTile.bbox {
+                labeled.append(.init(tile: idTile.tile, bbox: bbox))
             } else {
-                unknown.append(token)
+                unbboxed += 1
             }
         }
-        return (tiles, unknown)
+        if !labeled.isEmpty {
+            let result = TrainingDataSaver.save(
+                photoData: photoData,
+                labeled: labeled,
+                unbboxedLabelCount: unbboxed
+            )
+            notes.append("+\(result.saved) crops")
+        }
+
+        loggingNotice = notes.joined(separator: " · ")
     }
 
-    private func waitTypeLabel(_ w: WaitType) -> String {
+    // MARK: - Selection model + tile editing
+
+    /// Identifies which row a selected tile belongs to.
+    private enum TileLocation {
+        case concealed(Int)
+        case exposed(Int)
+        case flowers(Int)
+    }
+
+    /// Locate the selected tile by id. Returns nil if the id no longer matches
+    /// any tile (which can happen if the array was mutated).
+    private func locate(_ id: UUID) -> TileLocation? {
+        if let i = concealed.firstIndex(where: { $0.id == id }) { return .concealed(i) }
+        if let i = exposed.firstIndex(where: { $0.id == id }) { return .exposed(i) }
+        if let i = flowers.firstIndex(where: { $0.id == id }) { return .flowers(i) }
+        return nil
+    }
+
+    private struct SelectionInfo {
+        let id: UUID
+        let tile: Tile
+        let location: TileLocation
+        let isWinning: Bool
+        var canBeWinning: Bool {
+            // Flowers can't complete a winning hand; only concealed/exposed.
+            if case .flowers = location { return false }
+            return true
+        }
+    }
+
+    private func currentSelection() -> SelectionInfo? {
+        guard let id = selectedTileId, let loc = locate(id) else { return nil }
+        let tile: Tile
+        switch loc {
+        case .concealed(let i): tile = concealed[i].tile
+        case .exposed(let i): tile = exposed[i].tile
+        case .flowers(let i): tile = flowers[i].tile
+        }
+        return SelectionInfo(
+            id: id, tile: tile, location: loc,
+            isWinning: id == winningTileId
+        )
+    }
+
+    private func handleTileTap(_ id: UUID) {
+        // Click → immediately open the modal picker for that tile.
+        // The modal contains the full 42-tile grid plus Mark winning / Delete,
+        // so any single click in the modal completes the correction. Two clicks
+        // total per correction (tile + chosen action).
+        selectedTileId = id
+        pickerMode = .replaceSelected
+    }
+
+    private func setSelectedTile(_ newTile: Tile) {
+        guard let id = selectedTileId, let loc = locate(id) else { return }
+        switch loc {
+        case .concealed(let i): concealed[i].tile = newTile
+        case .exposed(let i): exposed[i].tile = newTile
+        case .flowers(let i): flowers[i].tile = newTile
+        }
+    }
+
+    private func deleteSelected() {
+        guard let id = selectedTileId, let loc = locate(id) else { return }
+        if winningTileId == id { winningTileId = nil }
+        switch loc {
+        case .concealed(let i): concealed.remove(at: i)
+        case .exposed(let i): exposed.remove(at: i)
+        case .flowers(let i): flowers.remove(at: i)
+        }
+        selectedTileId = nil
+    }
+
+    private func toggleWinning() {
+        guard let sel = currentSelection(), sel.canBeWinning else { return }
+        winningTileId = (winningTileId == sel.id) ? nil : sel.id
+    }
+
+    // MARK: - Picker mode (modal sheet)
+
+    enum PickerMode: String, Identifiable {
+        case replaceSelected
+        case addToConcealed
+        case addToExposed
+        case addToFlowers
+        var id: String { rawValue }
+    }
+
+    private func pickerTitle(for mode: PickerMode) -> String {
+        switch mode {
+        case .replaceSelected: return "Change to…"
+        case .addToConcealed: return "Add to Concealed"
+        case .addToExposed: return "Add to Exposed"
+        case .addToFlowers: return "Add to Flowers"
+        }
+    }
+
+    private func handlePick(mode: PickerMode, tile: Tile) {
+        switch mode {
+        case .replaceSelected:
+            setSelectedTile(tile)
+        case .addToConcealed:
+            concealed.append(IdentifiedTile(tile))
+        case .addToExposed:
+            exposed.append(IdentifiedTile(tile))
+        case .addToFlowers:
+            flowers.append(IdentifiedTile(tile))
+        }
+        closePicker()
+    }
+
+    private func closePicker() {
+        pickerMode = nil
+        selectedTileId = nil
+    }
+
+    private func shortWaitLabel(_ w: WaitType) -> String {
         switch w {
-        case .openWait: "Open (兩面)"
-        case .closedWait: "Closed (嵌張)"
-        case .edgeWait: "Edge (邊張)"
-        case .pairWait: "Pair (對碰)"
-        case .singleWait: "Single (單釣)"
+        case .openWait: "兩面"
+        case .closedWait: "嵌張"
+        case .edgeWait: "邊張"
+        case .pairWait: "對碰"
+        case .singleWait: "單釣"
         }
     }
 }
