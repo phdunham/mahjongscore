@@ -1,0 +1,29 @@
+{
+  "activityEntities" : [
+    "projectCreated",
+    [
+      {
+        "createdDate" : "2026-04-19T23:16:37Z",
+        "event" : "projectCreated",
+        "id" : "9B08F5F5-9726-466A-B4C7-1551E620EF98",
+        "subtitle" : "MahJongImageClassifier",
+        "title" : "Project Created"
+      }
+    ]
+  ],
+  "authorName" : "Paul Dunham",
+  "createdDate" : "2026-04-19T23:16:37Z",
+  "description" : "",
+  "id" : "6D680D87-891F-415D-87D1-0A4D09FA6B65",
+  "license" : "",
+  "location" : "",
+  "modifiedDate" : "2026-04-19T23:16:37Z",
+  "projectName" : "MahJongImageClassifier",
+  "settingsEntity" : {
+    "snapshotOnExtendTraining" : true,
+    "snapshotOnResumeTraining" : false
+  },
+  "taskType" : "imageClassifier",
+  "title" : "Image Classification",
+  "version" : "1.1"
+}
