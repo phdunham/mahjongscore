@@ -10,17 +10,41 @@ final class RecognitionTests: XCTestCase {
             model: .sonnet46, mediaType: "image/jpeg", base64Image: "FAKE"
         )
         XCTAssertEqual(body["model"] as? String, "claude-sonnet-4-6")
+
+        // The instruction prompt now lives in the system block with
+        // ephemeral cache_control so subsequent calls hit Anthropic's prompt
+        // cache. Verify both the cache marker and that the prompt text is present.
+        let system = body["system"] as? [[String: Any]]
+        XCTAssertEqual(system?.count, 1)
+        XCTAssertEqual(system?.first?["type"] as? String, "text")
+        let cacheControl = system?.first?["cache_control"] as? [String: Any]
+        XCTAssertEqual(cacheControl?["type"] as? String, "ephemeral")
+        XCTAssertNotNil(system?.first?["text"] as? String)
+
         let toolChoice = body["tool_choice"] as? [String: Any]
         XCTAssertEqual(toolChoice?["type"] as? String, "tool")
         XCTAssertEqual(toolChoice?["name"] as? String, "submit_hand")
 
+        // The user message should now contain just the image (text moved to system).
         let messages = body["messages"] as? [[String: Any]]
         XCTAssertEqual(messages?.count, 1)
         let content = messages?.first?["content"] as? [[String: Any]]
-        XCTAssertEqual(content?.count, 2)
+        XCTAssertEqual(content?.count, 1)
+        XCTAssertEqual(content?.first?["type"] as? String, "image")
         let source = content?.first?["source"] as? [String: Any]
         XCTAssertEqual(source?["media_type"] as? String, "image/jpeg")
         XCTAssertEqual(source?["data"] as? String, "FAKE")
+    }
+
+    func test_singleTileRequestBody_hasCacheControl() {
+        let body = ClaudeRecognizer.singleTileRequestBody(
+            model: .sonnet46, mediaType: "image/jpeg", base64Image: "FAKE"
+        )
+        let system = body["system"] as? [[String: Any]]
+        XCTAssertEqual(system?.first?["cache_control"] as? [String: String],
+                       ["type": "ephemeral"])
+        let toolChoice = body["tool_choice"] as? [String: Any]
+        XCTAssertEqual(toolChoice?["name"] as? String, "submit_tile")
     }
 
     // MARK: - extractToolUse / toRecognizedTiles happy paths

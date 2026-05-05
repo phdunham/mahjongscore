@@ -1,5 +1,8 @@
 import SwiftUI
 import AppKit
+import CoreGraphics
+import CoreImage
+import ImageIO
 import UniformTypeIdentifiers
 import MahjongCore
 
@@ -312,7 +315,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var photoSideView: some View {
-        let size: CGFloat = 320
+        let size: CGFloat = 480
         if let data = lastPhotoData, let nsImage = NSImage(data: data) {
             VStack(spacing: 4) {
                 Image(nsImage: nsImage)
@@ -330,31 +333,80 @@ struct ContentView: View {
                     )
                     .onTapGesture { showingPhotoModal = true }
                     .help("Click to view full size")
+
+                HStack(spacing: 4) {
+                    Button {
+                        rotatePhoto(clockwise: false)
+                    } label: {
+                        Image(systemName: "rotate.left")
+                            .font(.body)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(isRecognizing)
+                    .help("Rotate counter-clockwise")
+
+                    Button {
+                        rotatePhoto(clockwise: true)
+                    } label: {
+                        Image(systemName: "rotate.right")
+                            .font(.body)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(isRecognizing)
+                    .help("Rotate clockwise")
+
+                    Spacer()
+
+                    if isRecognizing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button {
+                            Task { await runRecognitionOnCurrentPhoto() }
+                        } label: {
+                            Label("Recognize", systemImage: "sparkle.magnifyingglass")
+                                .font(.caption.weight(.medium))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(recognizer == nil)
+                        .help("Send photo to recognizer")
+                    }
+                }
+                .frame(width: size)
+
                 Text("click photo to enlarge")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .frame(width: size, alignment: .trailing)
             }
         } else {
-            RoundedRectangle(cornerRadius: DT.Radius.md)
-                .fill(Color.secondary.opacity(0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DT.Radius.md)
-                        .strokeBorder(
-                            Color.secondary.opacity(0.25),
-                            style: StrokeStyle(lineWidth: 1, dash: [4, 3])
-                        )
-                )
-                .overlay(
-                    VStack(spacing: 8) {
-                        Image(systemName: "photo")
-                            .font(.largeTitle)
-                            .foregroundStyle(.tertiary)
-                        Text(recognizer == nil ? "No API key" : "No photo loaded")
-                            .font(.callout)
-                            .foregroundStyle(.tertiary)
-                    }
-                )
-                .frame(width: size, height: size)
+            ZStack {
+                RoundedRectangle(cornerRadius: DT.Radius.md)
+                    .fill(Color.secondary.opacity(0.06))
+                RoundedRectangle(cornerRadius: DT.Radius.md)
+                    .strokeBorder(
+                        Color.secondary.opacity(0.25),
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                    )
+                VStack(spacing: 8) {
+                    Image(systemName: "photo.badge.plus")
+                        .font(.largeTitle)
+                        .foregroundStyle(.tertiary)
+                    Text(recognizer == nil
+                         ? "No API key — set one in the toolbar"
+                         : "Click to choose a photo")
+                        .font(.callout)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(width: size, height: size)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if recognizer != nil { isImporting = true }
+            }
+            .help(recognizer == nil
+                  ? "Set an API key in the toolbar before loading a photo"
+                  : "Click to choose a photo file")
         }
     }
 
@@ -598,30 +650,189 @@ struct ContentView: View {
         case .failure(let error):
             recognitionError = "Failed to open file: \(error.localizedDescription)"
         case .success(let url):
-            guard let recognizer else {
-                recognitionError = "No recognizer configured."
-                return
-            }
             let accessing = url.startAccessingSecurityScopedResource()
             defer {
                 if accessing { url.stopAccessingSecurityScopedResource() }
             }
-            guard let data = try? Data(contentsOf: url) else {
+            guard let raw = try? Data(contentsOf: url) else {
                 recognitionError = "Could not read \(url.lastPathComponent)."
                 return
             }
-            let ext = url.pathExtension.lowercased()
-            lastPhotoMediaType = (ext == "png") ? "image/png" : "image/jpeg"
-            lastPhotoData = data
-            isRecognizing = true
-            defer { isRecognizing = false }
-            do {
-                let recognized = try await recognizer.recognize(imageData: data)
-                lastRecognized = recognized
-                populateFromRecognition(recognized)
-            } catch {
-                recognitionError = "Recognition failed: \(error)"
+            // Always normalize through a size-bounded JPEG re-encode, regardless
+            // of source format. Anthropic's vision API caps images at 5 MB and
+            // iPhone photos (HEIC or JPEG) routinely exceed that. Output: JPEG
+            // ≤2048 px long edge, quality 0.85 — typically 500 KB–1.5 MB.
+            guard let prepared = Self.preparePhotoForAPI(raw) else {
+                recognitionError = "Could not decode \(url.lastPathComponent)."
+                return
             }
+            lastPhotoMediaType = "image/jpeg"
+            lastPhotoData = prepared
+        }
+    }
+
+    /// Decode an arbitrary image format (HEIC/HEIF/JPEG/PNG/TIFF/etc.) and
+    /// re-encode as a size-bounded JPEG suitable for Anthropic's 5 MB limit.
+    ///
+    /// EXIF orientation is read explicitly and baked into the pixels via
+    /// `CIImage.oriented(_:)`. The previous approach
+    /// (`CGImageSourceCreateThumbnailAtIndex` with the transform flag) is
+    /// supposed to handle this but turns out to be unreliable for iPhone
+    /// HEIC — HEIF stores orientation slightly differently and the flag
+    /// doesn't always honor it. Reading the orientation property and
+    /// applying it via Core Image is rock-solid across all 8 orientations.
+    private static func preparePhotoForAPI(_ data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else { return nil }
+
+        let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let rawOrientation = (props?[kCGImagePropertyOrientation] as? UInt32) ?? 1
+        let orientation = CGImagePropertyOrientation(rawValue: rawOrientation) ?? .up
+
+        var oriented: CGImage
+        if orientation == .up {
+            oriented = cgImage
+        } else {
+            let ci = CIImage(cgImage: cgImage).oriented(orientation)
+            let ctx = CIContext()
+            oriented = ctx.createCGImage(ci, from: ci.extent) ?? cgImage
+        }
+
+        // Belt-and-suspenders: winning-hand photos are always landscape by
+        // convention, so if the EXIF path didn't get us there (or the file
+        // had no orientation tag at all), rotate 90° CW to land in landscape.
+        // Manual rotate buttons let the user fix the direction if needed.
+        if oriented.height > oriented.width,
+           let landscape = rotateCGImage(oriented, clockwise: true) {
+            oriented = landscape
+        }
+
+        return encodeBoundedJPEG(oriented)
+    }
+
+    /// Rotate a CGImage 90° clockwise or counter-clockwise. Used both by the
+    /// auto-orient step in `preparePhotoForAPI` and by the manual rotation
+    /// buttons (via `rotateJPEG`).
+    private static func rotateCGImage(_ cgImage: CGImage, clockwise: Bool) -> CGImage? {
+        let oldW = cgImage.width
+        let oldH = cgImage.height
+        let newW = oldH
+        let newH = oldW
+        let cs = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let ctx = CGContext(
+            data: nil,
+            width: newW, height: newH,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: cs,
+            bitmapInfo: bitmapInfo
+        ) else { return nil }
+        let radians: CGFloat = clockwise ? .pi / 2 : -.pi / 2
+        ctx.translateBy(x: CGFloat(newW) / 2, y: CGFloat(newH) / 2)
+        ctx.rotate(by: radians)
+        ctx.translateBy(x: -CGFloat(oldW) / 2, y: -CGFloat(oldH) / 2)
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: oldW, height: oldH))
+        return ctx.makeImage()
+    }
+
+    /// Encode a CGImage as JPEG, downscaling to a maximum long-edge dimension
+    /// first if needed. Default ceiling: 2048 px / quality 0.85, which keeps
+    /// the result well under Anthropic's 5 MB image cap while preserving
+    /// enough detail for tile recognition (pin-tile dot counts especially).
+    private static func encodeBoundedJPEG(
+        _ cgImage: CGImage,
+        maxLongEdge: Int = 2048,
+        quality: CGFloat = 0.85
+    ) -> Data? {
+        let w = cgImage.width
+        let h = cgImage.height
+        let longEdge = max(w, h)
+
+        let toEncode: CGImage
+        if longEdge > maxLongEdge {
+            let scale = Double(maxLongEdge) / Double(longEdge)
+            let newW = max(1, Int(Double(w) * scale))
+            let newH = max(1, Int(Double(h) * scale))
+            let cs = CGColorSpaceCreateDeviceRGB()
+            let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+            guard let ctx = CGContext(
+                data: nil,
+                width: newW, height: newH,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: cs,
+                bitmapInfo: bitmapInfo
+            ) else { return nil }
+            ctx.interpolationQuality = .high
+            ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: newW, height: newH))
+            guard let scaled = ctx.makeImage() else { return nil }
+            toEncode = scaled
+        } else {
+            toEncode = cgImage
+        }
+
+        let buffer = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(
+            buffer, UTType.jpeg.identifier as CFString, 1, nil
+        ) else { return nil }
+        CGImageDestinationAddImage(dest, toEncode, [
+            kCGImageDestinationLossyCompressionQuality: quality,
+        ] as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return buffer as Data
+    }
+
+    /// Rotate a JPEG 90° clockwise or counter-clockwise. Returns the rotated
+    /// JPEG bytes. The whole photo is rotated (not just the displayed copy),
+    /// so the same bytes flow on to Claude and the training-data cropper.
+    private static func rotateJPEG(_ data: Data, clockwise: Bool) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
+              let rotated = rotateCGImage(cgImage, clockwise: clockwise)
+        else { return nil }
+        // Re-encode through the same size-bounded path so a rotated image
+        // never grows back over the 5 MB API limit.
+        return encodeBoundedJPEG(rotated)
+    }
+
+    /// Rotate the loaded photo and re-run recognition (since the previous
+    /// bboxes are now stale relative to the rotated image).
+    private func rotatePhoto(clockwise: Bool) {
+        guard let data = lastPhotoData,
+              let rotated = Self.rotateJPEG(data, clockwise: clockwise)
+        else { return }
+        lastPhotoData = rotated
+        // Clear stale recognition state — bboxes no longer apply after rotation.
+        lastRecognized = nil
+        concealed = []
+        exposed = []
+        flowers = []
+        winningTileId = nil
+        selectedTileId = nil
+        showSingleRowToggle = false
+        scoreBreakdown = nil
+        scoreError = nil
+        autoDetectedWait = nil
+        recognitionError = nil
+        loggingNotice = nil
+    }
+
+    /// Re-run recognition against the bytes already loaded in `lastPhotoData`.
+    /// Used by the rotate action — no file picker, no Claude key check beyond
+    /// "is the recognizer configured."
+    @MainActor
+    private func runRecognitionOnCurrentPhoto() async {
+        guard let recognizer, let data = lastPhotoData else { return }
+        isRecognizing = true
+        defer { isRecognizing = false }
+        do {
+            let recognized = try await recognizer.recognize(imageData: data)
+            lastRecognized = recognized
+            populateFromRecognition(recognized)
+        } catch {
+            recognitionError = "Recognition failed: \(error)"
         }
     }
 
@@ -635,23 +846,33 @@ struct ContentView: View {
         showSingleRowToggle = false
         autoDetectedWait = nil
 
+        var seenFlowerTiles = Set<Tile>()
+        func addFlower(_ t: RecognizedTile) {
+            guard seenFlowerTiles.insert(t.tile).inserted else { return }
+            flowers.append(IdentifiedTile(t.tile, bbox: t.bbox, confidence: t.confidence))
+        }
+
         for row in r.rows {
-            let idTiles = row.tiles.map { IdentifiedTile($0.tile, bbox: $0.bbox) }
+            let allIdTiles = row.tiles.map {
+                IdentifiedTile($0.tile, bbox: $0.bbox, confidence: $0.confidence)
+            }
+            let rowTiles = allIdTiles.filter { !$0.tile.isFlower }
+            row.tiles.filter { $0.tile.isFlower }.forEach { addFlower($0) }
             switch row.placement {
             case .upper:
-                concealed = idTiles
+                concealed = rowTiles
             case .lower:
-                exposed = idTiles
+                exposed = rowTiles
             case .single:
                 if singleRowIsExposed {
-                    exposed = idTiles
+                    exposed = rowTiles
                 } else {
-                    concealed = idTiles
+                    concealed = rowTiles
                 }
                 showSingleRowToggle = true
             }
         }
-        flowers = r.flowers.map { IdentifiedTile($0.tile, bbox: $0.bbox) }
+        r.flowers.forEach { addFlower($0) }
 
         if let w = r.winningTile {
             if let match = concealed.first(where: { $0.tile == w.tile }) {
@@ -875,10 +1096,18 @@ struct ContentView: View {
 
     private func setSelectedTile(_ newTile: Tile) {
         guard let id = selectedTileId, let loc = locate(id) else { return }
+        // User has explicitly chosen a tile, so clear any recognizer
+        // confidence — the amber low-confidence styling drops away.
         switch loc {
-        case .concealed(let i): concealed[i].tile = newTile
-        case .exposed(let i): exposed[i].tile = newTile
-        case .flowers(let i): flowers[i].tile = newTile
+        case .concealed(let i):
+            concealed[i].tile = newTile
+            concealed[i].confidence = nil
+        case .exposed(let i):
+            exposed[i].tile = newTile
+            exposed[i].confidence = nil
+        case .flowers(let i):
+            flowers[i].tile = newTile
+            flowers[i].confidence = nil
         }
     }
 

@@ -7,30 +7,44 @@ import MahjongCore
 /// a hand can have duplicate tile values (e.g. a pung of 5p) and we still have
 /// to point at a specific one when the user taps it or marks it as the winning tile.
 ///
-/// Carries the optional `bbox` from recognition so we can crop training samples
-/// from the source photo on successful scoring. Replacing the tile via the
-/// picker keeps the bbox intact (same physical tile, corrected label).
+/// Carries the optional `bbox` from recognition (used to crop training samples
+/// from the source photo) and an optional `confidence` from the recognizer.
+/// Replacing the tile via the picker keeps the bbox intact (same physical tile,
+/// corrected label) but clears `confidence` since the user has overridden it.
 struct IdentifiedTile: Identifiable, Hashable {
     let id: UUID
     var tile: Tile
     var bbox: BBox?
+    var confidence: Double?
 
-    init(_ tile: Tile, bbox: BBox? = nil, id: UUID = UUID()) {
+    init(_ tile: Tile, bbox: BBox? = nil, confidence: Double? = nil, id: UUID = UUID()) {
         self.id = id
         self.tile = tile
         self.bbox = bbox
+        self.confidence = confidence
     }
 }
+
+/// Confidence below this threshold gets an amber border in the UI to flag
+/// "the recognizer wasn't sure about this — eyeball it." Tiles without
+/// recognition data (`confidence == nil`) are treated as user-confirmed and
+/// rendered normally.
+let lowConfidenceThreshold: Double = 0.85
 
 // MARK: - TileCard
 
 /// A single tile face. Click selects it; the action toolbar at the
 /// ContentView level handles editing and the modal picker handles
 /// arbitrary tile changes. There is no per-card menu anymore.
+///
+/// `confidence` (optional) drives a low-confidence amber border for tiles
+/// the recognizer wasn't sure about — winning/selected styles still take
+/// priority since those carry stronger user-relevant meaning.
 struct TileCard: View {
     let tile: Tile
     let isWinning: Bool
     let isSelected: Bool
+    let confidence: Double?
     let onTap: () -> Void
 
     var body: some View {
@@ -38,6 +52,11 @@ struct TileCard: View {
             cardFace
         }
         .buttonStyle(.plain)
+    }
+
+    private var isLowConfidence: Bool {
+        guard let c = confidence else { return false }
+        return c < lowConfidenceThreshold
     }
 
     private var cardFace: some View {
@@ -61,6 +80,7 @@ struct TileCard: View {
                     y: isWinning ? 2 : 0
                 )
 
+            // Winning tile star (top-right)
             if isWinning {
                 Image(systemName: "star.fill")
                     .font(.system(size: 14, weight: .bold))
@@ -75,6 +95,23 @@ struct TileCard: View {
                     )
                     .offset(x: 7, y: -7)
             }
+
+            // Low-confidence warning (bottom-left). Hidden if winning/selected
+            // since those styles already draw the eye.
+            if isLowConfidence && !isWinning && !isSelected {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(3)
+                    .background(Circle().fill(Color.orange))
+                    .overlay(
+                        Circle().strokeBorder(
+                            Color(nsColor: .controlBackgroundColor),
+                            lineWidth: 1.2
+                        )
+                    )
+                    .offset(x: -5, y: DT.Tile.height - 22)
+            }
         }
         .offset(y: isWinning ? DT.Tile.winningOffset : 0)
         .help(helpText)
@@ -83,18 +120,21 @@ struct TileCard: View {
     private var backgroundFill: Color {
         if isWinning { return Color.accentColor.opacity(0.22) }
         if isSelected { return Color.blue.opacity(0.18) }
+        if isLowConfidence { return Color.orange.opacity(0.10) }
         return Color(nsColor: .controlBackgroundColor)
     }
 
     private var borderColor: Color {
         if isWinning { return Color.accentColor }
         if isSelected { return Color.blue }
+        if isLowConfidence { return Color.orange }
         return Color.secondary.opacity(0.35)
     }
 
     private var borderWidth: CGFloat {
         if isWinning { return DT.Tile.winningBorder }
         if isSelected { return DT.Tile.selectedBorder }
+        if isLowConfidence { return 2 }
         return DT.Tile.border
     }
 
@@ -108,9 +148,13 @@ struct TileCard: View {
     }
 
     private var helpText: String {
-        if isWinning { return "\(tile.displayName) — winning tile" }
-        if isSelected { return "\(tile.displayName) — selected" }
-        return tile.displayName
+        var parts: [String] = [tile.displayName]
+        if isWinning { parts.append("winning tile") }
+        else if isSelected { parts.append("selected") }
+        if let c = confidence, c < lowConfidenceThreshold {
+            parts.append(String(format: "low confidence: %.0f%%", c * 100))
+        }
+        return parts.joined(separator: " — ")
     }
 }
 
@@ -172,6 +216,7 @@ struct TileRow: View {
                             tile: idTile.tile,
                             isWinning: idTile.id == winningTileId,
                             isSelected: idTile.id == selectedTileId,
+                            confidence: idTile.confidence,
                             onTap: { onTileTap(idTile.id) }
                         )
                     }

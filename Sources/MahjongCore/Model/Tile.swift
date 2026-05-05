@@ -227,7 +227,13 @@ public extension Tile {
             case .white: return "\u{1F006}"  // 🀆
             }
         case .flower(let f):
-            let baseChar: UnicodeScalar = f.kind == .season ? "\u{1F022}" : "\u{1F026}"
+            // Unicode Mahjong Tiles block:
+            //   U+1F022..U+1F025 = MAHJONG TILE PLUM / ORCHID / CHRYSANTHEMUM / BAMBOO  (plants)
+            //   U+1F026..U+1F029 = MAHJONG TILE SPRING / SUMMER / AUTUMN / WINTER       (seasons)
+            // Map our kinds to the correct base. (This used to be inverted —
+            // the picker showed plant glyphs under the "Seasons" label and
+            // vice versa.)
+            let baseChar: UnicodeScalar = f.kind == .season ? "\u{1F026}" : "\u{1F022}"
             return String(UnicodeScalar(baseChar.value + UInt32(f.index - 1))!)
         }
     }

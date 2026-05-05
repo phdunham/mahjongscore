@@ -137,7 +137,11 @@ public struct ClaudeRecognizer: ImageRecognizer {
         for (idx, flower) in first.flowers.enumerated() where shouldReverify(flower) {
             jobs.append(.flower(index: idx, tile: flower))
         }
-        if let w = first.winningTile, shouldReverify(w) {
+        // Always re-verify the winning tile if we have a bbox to crop. A wrong
+        // winning tile breaks the entire score, so the extra ~$0.005 is a
+        // no-brainer regardless of first-pass confidence. Falls back gracefully
+        // if the bbox is missing or invalid.
+        if let w = first.winningTile, w.bbox?.isValid == true {
             jobs.append(.winning(tile: w))
         }
         if jobs.isEmpty { return first }
@@ -320,6 +324,19 @@ public struct ClaudeRecognizer: ImageRecognizer {
         return [
             "model": model.rawValue,
             "max_tokens": 4096,
+            // Move the long instruction prompt to the system block with
+            // ephemeral cache_control. Anthropic's prompt caching means the
+            // ~600-token prompt + tool schema only count as input tokens on
+            // the first call; subsequent calls within the cache TTL hit the
+            // cache and pay ~10% of the rate. Tools are also cached when
+            // system has cache_control.
+            "system": [
+                [
+                    "type": "text",
+                    "text": recognitionPrompt,
+                    "cache_control": ["type": "ephemeral"],
+                ]
+            ],
             "tools": [
                 [
                     "name": "submit_hand",
@@ -376,6 +393,16 @@ public struct ClaudeRecognizer: ImageRecognizer {
             ],
             "tool_choice": ["type": "tool", "name": "submit_hand"],
             "messages": [
+                // Cached reference turn: 1p–9p chart so Claude is calibrated
+                // before it sees the hand.
+                [
+                    "role": "user",
+                    "content": pinReferenceContentBlocks(),
+                ],
+                [
+                    "role": "assistant",
+                    "content": "Pin tile reference noted. I'll count dots carefully.",
+                ],
                 [
                     "role": "user",
                     "content": [
@@ -386,11 +413,7 @@ public struct ClaudeRecognizer: ImageRecognizer {
                                 "media_type": mediaType,
                                 "data": base64Image,
                             ],
-                        ],
-                        [
-                            "type": "text",
-                            "text": recognitionPrompt,
-                        ],
+                        ]
                     ],
                 ]
             ],
@@ -488,6 +511,13 @@ public struct ClaudeRecognizer: ImageRecognizer {
         [
             "model": model.rawValue,
             "max_tokens": 256,
+            "system": [
+                [
+                    "type": "text",
+                    "text": singleTilePrompt,
+                    "cache_control": ["type": "ephemeral"],
+                ]
+            ],
             "tools": [
                 [
                     "name": "submit_tile",
@@ -510,6 +540,16 @@ public struct ClaudeRecognizer: ImageRecognizer {
             ],
             "tool_choice": ["type": "tool", "name": "submit_tile"],
             "messages": [
+                // Cached reference turn so Claude has 1p–9p examples before
+                // it examines the crop.
+                [
+                    "role": "user",
+                    "content": pinReferenceContentBlocks(),
+                ],
+                [
+                    "role": "assistant",
+                    "content": "Reference images noted. I'll count this tile's dots carefully.",
+                ],
                 [
                     "role": "user",
                     "content": [
@@ -520,11 +560,7 @@ public struct ClaudeRecognizer: ImageRecognizer {
                                 "media_type": mediaType,
                                 "data": base64Image,
                             ],
-                        ],
-                        [
-                            "type": "text",
-                            "text": singleTilePrompt,
-                        ],
+                        ]
                     ],
                 ]
             ],
@@ -593,6 +629,118 @@ public struct ClaudeRecognizer: ImageRecognizer {
         CGImageDestinationAddImage(dest, cropped, opts as CFDictionary)
         guard CGImageDestinationFinalize(dest) else { return nil }
         return buffer as Data
+    }
+
+    // MARK: - Pin tile reference images
+
+    /// Normalized (x, y) dot positions within the tile face area [0, 1].
+    /// Indexed 0–8 for 1p–9p.
+    private static let pinDotLayouts: [[(Double, Double)]] = [
+        // 1p: center
+        [(0.5, 0.5)],
+        // 2p: top + bottom
+        [(0.5, 0.28), (0.5, 0.72)],
+        // 3p: diagonal top-right → bottom-left
+        [(0.68, 0.22), (0.5, 0.5), (0.32, 0.78)],
+        // 4p: four corners
+        [(0.3, 0.28), (0.7, 0.28), (0.3, 0.72), (0.7, 0.72)],
+        // 5p: four corners + center
+        [(0.3, 0.22), (0.7, 0.22), (0.5, 0.5), (0.3, 0.78), (0.7, 0.78)],
+        // 6p: two columns of 3
+        [(0.32, 0.22), (0.32, 0.5), (0.32, 0.78),
+         (0.68, 0.22), (0.68, 0.5), (0.68, 0.78)],
+        // 7p: two columns of 3 + one at top center
+        [(0.5,  0.12),
+         (0.32, 0.36), (0.68, 0.36),
+         (0.32, 0.60), (0.68, 0.60),
+         (0.32, 0.84), (0.68, 0.84)],
+        // 8p: two columns of 4
+        [(0.32, 0.16), (0.32, 0.38), (0.32, 0.62), (0.32, 0.84),
+         (0.68, 0.16), (0.68, 0.38), (0.68, 0.62), (0.68, 0.84)],
+        // 9p: 3×3 grid
+        [(0.25, 0.22), (0.5, 0.22), (0.75, 0.22),
+         (0.25, 0.5),  (0.5, 0.5),  (0.75, 0.5),
+         (0.25, 0.78), (0.5, 0.78), (0.75, 0.78)],
+    ]
+
+    /// Pre-rendered PNG bytes for 1p–9p. Static so they're generated once and
+    /// reused across all calls — same pixels every time means the base64 is
+    /// stable, which is what lets Anthropic's prefix cache hit reliably.
+    static let pinReferencePNGs: [Data] =
+        pinDotLayouts.compactMap { renderPinTilePNG(dots: $0) }
+
+    private static func renderPinTilePNG(dots: [(Double, Double)]) -> Data? {
+        let w = 80, h = 112
+        let cs = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+            space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        // Flip to top-left origin so (0,0) is top-left as expected.
+        ctx.translateBy(x: 0, y: CGFloat(h))
+        ctx.scaleBy(x: 1, y: -1)
+
+        // Cream background
+        ctx.setFillColor(CGColor(colorSpace: cs, components: [0.96, 0.94, 0.88, 1])!)
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+
+        // Dark border
+        ctx.setStrokeColor(CGColor(colorSpace: cs, components: [0.25, 0.25, 0.25, 1])!)
+        ctx.setLineWidth(2)
+        ctx.stroke(CGRect(x: 1.5, y: 1.5, width: Double(w) - 3, height: Double(h) - 3))
+
+        // Red dots
+        let fX = Double(w) * 0.10, fY = Double(h) * 0.10
+        let fW = Double(w) * 0.80, fH = Double(h) * 0.80
+        let r  = Double(w) * 0.09
+        ctx.setFillColor(CGColor(colorSpace: cs, components: [0.78, 0.08, 0.08, 1])!)
+        for (nx, ny) in dots {
+            let cx = fX + nx * fW, cy = fY + ny * fH
+            ctx.fillEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
+        }
+
+        guard let img = ctx.makeImage() else { return nil }
+        let buf = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(
+            buf, UTType.png.identifier as CFString, 1, nil
+        ) else { return nil }
+        CGImageDestinationAddImage(dest, img, nil)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return buf as Data
+    }
+
+    /// Build the user-turn content blocks that show the 1p–9p reference chart.
+    /// The last block carries `cache_control: ephemeral` so Anthropic caches
+    /// this entire turn — the images are deterministic, so every subsequent
+    /// call hits the cache.
+    private static func pinReferenceContentBlocks() -> [[String: Any]] {
+        var blocks: [[String: Any]] = [
+            ["type": "text",
+             "text": "Pin tile (筒) reference — 1p through 9p in order:"],
+        ]
+        for (i, png) in pinReferencePNGs.enumerated() {
+            let n = i + 1
+            blocks.append([
+                "type": "image",
+                "source": [
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": png.base64EncodedString(),
+                ],
+            ])
+            blocks.append([
+                "type": "text",
+                "text": "\(n)p — \(n) dot\(n == 1 ? "" : "s")",
+            ])
+        }
+        // Cache boundary: everything above is stable across all calls.
+        if !blocks.isEmpty {
+            var last = blocks.removeLast()
+            last["cache_control"] = ["type": "ephemeral"]
+            blocks.append(last)
+        }
+        return blocks
     }
 
     // MARK: - Convenience
