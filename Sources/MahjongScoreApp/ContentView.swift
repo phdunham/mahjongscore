@@ -31,7 +31,7 @@ struct ContentView: View {
     @State private var pickerMode: PickerMode?
     @State private var showSingleRowToggle = false
 
-    @State private var selfDrawn = true
+    @State private var selfDrawn = false
     @State private var waitType: WaitType = .openWait
     @State private var autoDetectedWait: WaitType?
     @State private var lastTile = false
@@ -905,6 +905,7 @@ struct ContentView: View {
         afterKongOnKong = false
         afterFlower = false
         robbingKong = false
+        selfDrawn = false
         declaredTing = true
         heavenlyHand = false
         earthlyHand = false

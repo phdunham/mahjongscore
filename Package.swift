@@ -21,6 +21,10 @@ let package = Package(
             name: "MahjongCoreTests",
             dependencies: ["MahjongCore"]
         ),
+        .testTarget(
+            name: "MahjongUITests",
+            dependencies: ["MahjongUI", "MahjongCore"]
+        ),
         .target(
             name: "MahjongUI",
             dependencies: ["MahjongCore"],

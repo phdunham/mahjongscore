@@ -59,7 +59,9 @@ public final class HandEntryModel: ObservableObject {
 
     // MARK: Win context (persisted fields save on change)
 
-    @Published public var selfDrawn = true
+    /// Off by default — a win off someone else's discard is the common case,
+    /// so this is switched on only for the hands that were actually self-drawn.
+    @Published public var selfDrawn = false
     @Published public var isDealer: Bool { didSet { defaults.set(isDealer, forKey: Keys.isDealer) } }
     @Published public var roundWind: Wind { didSet { defaults.set(roundWind.rawValue, forKey: Keys.roundWind) } }
     @Published public var seatWind: Wind { didSet { defaults.set(seatWind.rawValue, forKey: Keys.seatWind) } }
@@ -216,7 +218,7 @@ public final class HandEntryModel: ObservableObject {
         winningIsAuto = true
         selectedId = nil
         target = .concealed
-        selfDrawn = true
+        selfDrawn = false
         declaredTing = true
         lastTile = false
         afterKong = false
