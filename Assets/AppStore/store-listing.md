@@ -91,9 +91,11 @@ in the app are a scoring convention, not real-money gambling, so the
 
 ## Screenshots
 
-`Assets/AppStore/Screenshots-6.9in/` — three screenshots at 1320×2868px
-(Apple's required 6.9" iPhone size; App Store Connect scales them down for
-smaller devices automatically):
+`Assets/AppStore/Screenshots-6.7in/` — three screenshots at 1284×2778px
+(6.7" iPhone size — App Store Connect rejected 1320×2868 (6.9") uploaded to
+this slot: "Screenshots dimensions should be: 1242×2688, 2688×1242,
+1284×2778 or 2778×1284px". App Store Connect scales these down for smaller
+devices automatically):
 
 1. `1-tile-entry.png` — the tile grid, photos of the real tile set
 2. `2-score-breakdown.png` — a scored hand with the full tai breakdown
@@ -107,7 +109,7 @@ add up to 10 per device size later without a new build.
 | Field | Value |
 |---|---|
 | **Marketing version** | 1.0 |
-| **Build number** | 1 |
+| **Build number** | 2 (bumped from 1 — Apple rejects a re-upload of the same build number) |
 | **Minimum iOS** | 17.0 |
 | **Devices** | iPhone only |
 | **Encryption** | None (already declared in Info.plist — no prompt at upload) |
