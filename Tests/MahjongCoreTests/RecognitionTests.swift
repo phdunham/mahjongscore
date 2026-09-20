@@ -25,10 +25,21 @@ final class RecognitionTests: XCTestCase {
         XCTAssertEqual(toolChoice?["type"] as? String, "tool")
         XCTAssertEqual(toolChoice?["name"] as? String, "submit_hand")
 
-        // The user message should now contain just the image (text moved to system).
+        // Messages: a cached 1p–9p reference turn (user + assistant ack),
+        // then the hand photo on its own as the final user turn.
         let messages = body["messages"] as? [[String: Any]]
-        XCTAssertEqual(messages?.count, 1)
-        let content = messages?.first?["content"] as? [[String: Any]]
+        XCTAssertEqual(messages?.count, 3)
+        XCTAssertEqual(messages?[0]["role"] as? String, "user")
+        XCTAssertEqual(messages?[1]["role"] as? String, "assistant")
+        XCTAssertEqual(messages?[2]["role"] as? String, "user")
+
+        let reference = messages?[0]["content"] as? [[String: Any]]
+        let refImages = reference?.filter { ($0["type"] as? String) == "image" } ?? []
+        XCTAssertEqual(refImages.count, 9, "one reference image per pin tile")
+        let refCache = reference?.last?["cache_control"] as? [String: Any]
+        XCTAssertEqual(refCache?["type"] as? String, "ephemeral")
+
+        let content = messages?[2]["content"] as? [[String: Any]]
         XCTAssertEqual(content?.count, 1)
         XCTAssertEqual(content?.first?["type"] as? String, "image")
         let source = content?.first?["source"] as? [String: Any]

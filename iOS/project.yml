@@ -1,0 +1,57 @@
+# Xcode project for the iPhone app. Regenerate after editing with:
+#   cd iOS && xcodegen generate
+# The app is a thin shell; all UI lives in the MahjongUI package target.
+name: MahjongScoreiOS
+options:
+  bundleIdPrefix: com.pdunham
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "26.0"
+  # Emit a real, shared .xcscheme (Archive/TestFlight need one that's checked
+  # into git, not the private per-user scheme Xcode improvises otherwise).
+  generateEmptySchemes: false
+schemes:
+  MahjongScoreiOS:
+    build:
+      targets:
+        MahjongScoreiOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+packages:
+  MahjongScore:
+    path: ..
+targets:
+  MahjongScoreiOS:
+    type: application
+    platform: iOS
+    sources:
+      - MahjongScoreiOS
+    dependencies:
+      - package: MahjongScore
+        product: MahjongUI
+    info:
+      path: MahjongScoreiOS/Info.plist
+      properties:
+        CFBundleDisplayName: Mahjong Score
+        # Must reference the build settings: XcodeGen otherwise writes the
+        # literals "1.0" / "1" here and CURRENT_PROJECT_VERSION is silently
+        # ignored (Apple then rejects re-uploads as ITMS-90189).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pdunham.mahjongscore
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "2"
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 9NGY8LHJ88
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO

@@ -31,7 +31,7 @@ struct ContentView: View {
     @State private var pickerMode: PickerMode?
     @State private var showSingleRowToggle = false
 
-    @State private var selfDrawn = true
+    @State private var selfDrawn = false
     @State private var waitType: WaitType = .openWait
     @State private var autoDetectedWait: WaitType?
     @State private var lastTile = false
@@ -39,7 +39,7 @@ struct ContentView: View {
     @State private var afterKongOnKong = false
     @State private var afterFlower = false
     @State private var robbingKong = false
-    @State private var declaredTing = false
+    @State private var declaredTing = true
     @State private var heavenlyHand = false
     @State private var earthlyHand = false
     @State private var humanHand = false
@@ -455,7 +455,7 @@ struct ContentView: View {
             ) {
                 Toggle("Self-drawn 自摸", isOn: $selfDrawn)
                 Toggle("Dealer 莊家", isOn: $isDealer)
-                Toggle("Ting 聽牌", isOn: $declaredTing)
+                Toggle("Declared ready 聽牌", isOn: $declaredTing)
                 Toggle("Last tile 海底", isOn: $lastTile)
                 Toggle("After kong 槓上", isOn: $afterKong)
                 Toggle("Kong-on-kong 摃上摃", isOn: $afterKongOnKong)
@@ -555,15 +555,13 @@ struct ContentView: View {
                         breakdown.awards.sorted(by: { $0.totalTai > $1.totalTai }),
                         id: \.ruleId
                     ) { award in
-                        HStack(spacing: 6) {
-                            Text(award.nameZh)
-                                .font(.callout.weight(.medium))
-                                .frame(minWidth: 60, alignment: .leading)
-                            Text(award.nameEn)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer()
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            (Text(award.nameZh).font(.callout.weight(.medium))
+                             + Text("  ")
+                             + Text(award.nameEn).font(.caption).foregroundStyle(.secondary))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Spacer(minLength: 4)
                             Text(award.count > 1
                                  ? "\(award.taiPerCount)×\(award.count)=\(award.totalTai)"
                                  : "\(award.totalTai)")
@@ -907,7 +905,8 @@ struct ContentView: View {
         afterKongOnKong = false
         afterFlower = false
         robbingKong = false
-        declaredTing = false
+        selfDrawn = false
+        declaredTing = true
         heavenlyHand = false
         earthlyHand = false
         humanHand = false

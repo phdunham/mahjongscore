@@ -22,3 +22,7 @@ build/
 # Training data — too large to commit. README.md inside is committed separately.
 training-data/*/
 !training-data/README.md
+
+# Python cache from scripts/*.py
+__pycache__/
+*.pyc

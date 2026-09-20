@@ -147,10 +147,44 @@ public enum Decomposer {
     /// plus the eye.
     ///
     /// The winning tile must appear in either `concealedTiles` or `exposedTiles`.
+    ///
+    /// The eye can never be a called meld, so it always belongs to the concealed
+    /// side — but when a finished hand is laid out, people naturally put the pair
+    /// down with everything else. If the split as given doesn't work, any pair
+    /// found among the exposed tiles is tried as the (concealed) eye.
     public static func decomposeWithConcealment(
         concealedTiles: [Tile],
         exposedTiles: [Tile],
         flowers: [Tile] = [],
+        winningTile: Tile
+    ) throws -> Hand {
+        do {
+            return try decomposeStrict(
+                concealedTiles: concealedTiles, exposedTiles: exposedTiles,
+                flowers: flowers, winningTile: winningTile
+            )
+        } catch {
+            var counts: [Tile: Int] = [:]
+            for t in exposedTiles { counts[t, default: 0] += 1 }
+            for pair in counts.filter({ $0.value >= 2 }).map(\.key).sorted() {
+                var exposed = exposedTiles
+                remove(&exposed, value: pair, count: 2)
+                if let hand = try? decomposeStrict(
+                    concealedTiles: concealedTiles + [pair, pair], exposedTiles: exposed,
+                    flowers: flowers, winningTile: winningTile
+                ) {
+                    return hand
+                }
+            }
+            throw error
+        }
+    }
+
+    /// The split exactly as given: exposed tiles are complete melds only.
+    private static func decomposeStrict(
+        concealedTiles: [Tile],
+        exposedTiles: [Tile],
+        flowers: [Tile],
         winningTile: Tile
     ) throws -> Hand {
         // 1. Partition the exposed side into complete melds (no eye).

@@ -21,7 +21,21 @@
       "Bash(bash /Users/pdunham/work/mahjongscore/scripts/init-training-dirs.sh)",
       "Bash(bash /Users/pdunham/work/mahjongscore/scripts/check-training-data.sh)",
       "Bash(awk '/extension CreateML.MLImageClassifier|MLImageClassifier\\\\.ModelParameters/,/^}/' /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk/System/Library/Frameworks/CreateML.framework/Versions/A/Modules/CreateML.swiftmodule/arm64e-apple-macos.swiftinterface)",
-      "Bash(swift -e ' *)"
+      "Bash(swift -e ' *)",
+      "Bash(xcrun simctl *)",
+      "Bash(brew install *)",
+      "Bash(xcodegen generate *)",
+      "Bash(xcodebuild -project MahjongScoreiOS.xcodeproj -scheme MahjongScoreiOS -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build -configuration Debug CODE_SIGNING_ALLOWED=NO build)",
+      "Bash(xcode-select -p)",
+      "Bash(echo \"xcode-select: $\\(xcode-select -p\\)\")",
+      "Read(//Applications/**)",
+      "Bash(xcodebuild -project MahjongScoreiOS.xcodeproj -scheme MahjongScoreiOS -showdestinations)",
+      "Bash(xcodebuild -project MahjongScoreiOS.xcodeproj -scheme MahjongScoreiOS -destination 'platform=iOS Simulator,id=B719A352-0B84-4581-B60A-F54A8BF5E584' -derivedDataPath build -configuration Debug CODE_SIGNING_ALLOWED=NO build)",
+      "Bash(xcodebuild -showsdks)",
+      "Bash(swift run *)",
+      "Bash(xcodebuild -downloadPlatform iOS)",
+      "Bash(git stash *)",
+      "Bash(ls -la ~/Library/Developer/Xcode/ 2>/dev/null | head; du -sh ~/Library/Caches/com.apple.dt.Xcode/Downloads 2>/dev/null; ps aux | grep -i \"downloadPlatform\\\\|xcodebuild\" | grep -v grep | head -3)"
     ]
   }
 }

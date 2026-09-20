@@ -8,6 +8,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        // Under `swift run` there is no Info.plist to name an icon, so the Dock
+        // shows a generic executable. The bundled .app gets AppIcon.icns instead.
+        if Bundle.main.object(forInfoDictionaryKey: "CFBundleIconFile") == nil,
+           let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+           let icon = NSImage(contentsOf: url) {
+            NSApp.applicationIconImage = icon
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -21,8 +28,8 @@ struct MahjongScoreApp: App {
 
     var body: some Scene {
         WindowGroup("Mahjong Score") {
-            ContentView()
+            RootView()
         }
-        .defaultSize(width: 820, height: 720)
+        .defaultSize(width: 1000, height: 760)
     }
 }

@@ -5,7 +5,8 @@
 #
 # The bundle contains:
 #   Contents/MacOS/MahjongScore            — the release binary
-#   Contents/MacOS/MahjongCore_MahjongCore.bundle — bundled Rules.json etc.
+#   Contents/MacOS/*.bundle                — SwiftPM resource bundles (rules, tile photos)
+#   Contents/Resources/AppIcon.icns        — East wind icon (scripts/make_app_icon.py)
 #   Contents/Info.plist                    — minimum metadata for Launch Services
 #
 # The SwiftPM resource-bundle lookup walks executable-relative paths, so placing
@@ -37,16 +38,23 @@ mkdir -p "${APP_DIR}/Contents/Resources"
 
 cp "$EXEC_PATH" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
 
-# Copy the SwiftPM-generated resources bundle alongside the executable so
-# Bundle.module's executable-relative lookup finds Rules.json.
-for candidate in \
-    ".build/release/MahjongCore_MahjongCore.bundle" \
-    ".build/release/MahjongScore_MahjongCore.bundle" ; do
-    if [[ -d "$candidate" ]]; then
-        echo "==> Copying resource bundle $(basename "$candidate")"
-        cp -R "$candidate" "${APP_DIR}/Contents/MacOS/"
-    fi
+# Copy every SwiftPM-generated resource bundle (Rules.json, tile photos, ...)
+# alongside the executable. Bundle.module looks beside the main bundle first
+# and then falls back to the absolute .build path it was compiled with.
+shopt -s nullglob
+for candidate in .build/release/*.bundle; do
+    echo "==> Copying resource bundle $(basename "$candidate")"
+    cp -R "$candidate" "${APP_DIR}/Contents/MacOS/"
 done
+shopt -u nullglob
+
+ICON_SRC="Assets/AppIcon/AppIcon.icns"
+if [[ -f "$ICON_SRC" ]]; then
+    echo "==> Adding app icon"
+    cp "$ICON_SRC" "${APP_DIR}/Contents/Resources/AppIcon.icns"
+else
+    echo "WARNING: $ICON_SRC missing — run scripts/make_app_icon.py" >&2
+fi
 
 cat > "${APP_DIR}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -65,6 +73,8 @@ cat > "${APP_DIR}/Contents/Info.plist" <<PLIST
     <string>${VERSION}</string>
     <key>CFBundleVersion</key>
     <string>${VERSION}</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
