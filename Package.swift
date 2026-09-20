@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
         .library(name: "MahjongCore", targets: ["MahjongCore"]),
+        .library(name: "MahjongUI", targets: ["MahjongUI"]),
         .executable(name: "MahjongScoreApp", targets: ["MahjongScoreApp"]),
         .executable(name: "TileCam", targets: ["TileCam"]),
         .executable(name: "ClassifyTile", targets: ["ClassifyTile"]),
@@ -20,11 +21,21 @@ let package = Package(
             name: "MahjongCoreTests",
             dependencies: ["MahjongCore"]
         ),
+        .target(
+            name: "MahjongUI",
+            dependencies: ["MahjongCore"],
+            resources: [.process("Resources")]
+        ),
         .executableTarget(
             name: "MahjongScoreApp",
-            dependencies: ["MahjongCore"]
+            dependencies: ["MahjongCore", "MahjongUI"],
+            resources: [.process("Resources")]
         ),
         .executableTarget(name: "TileCam"),
+        .executableTarget(
+            name: "SnapshotUI",
+            dependencies: ["MahjongCore", "MahjongUI"]
+        ),
         .executableTarget(
             name: "ClassifyTile",
             dependencies: ["MahjongCore"]

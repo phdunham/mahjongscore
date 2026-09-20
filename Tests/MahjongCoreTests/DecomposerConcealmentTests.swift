@@ -80,4 +80,46 @@ final class DecomposerConcealmentTests: XCTestCase {
             XCTFail("expected winCompletes to be a meld")
         }
     }
+
+    // MARK: - Eye laid down with the exposed tiles
+
+    private func tiles(_ notations: String) -> [Tile] {
+        notations.split(separator: " ").map { try! Tile(String($0)) }
+    }
+
+    func test_pairInExposedRow_isTreatedAsConcealedEye() throws {
+        // 123m 456p concealed; 789p 123s EEE + the SS pair laid down as exposed.
+        let hand = try Decomposer.decomposeWithConcealment(
+            concealedTiles: tiles("1m 2m 3m 4p 5p 6p"),
+            exposedTiles: tiles("7p 8p 9p 1s 2s 3s Ew Ew Ew Sw Sw"),
+            winningTile: try Tile("Sw")
+        )
+        XCTAssertEqual(hand.eye.tiles, tiles("Sw Sw"))
+        XCTAssertTrue(hand.eye.isConcealed)
+        XCTAssertEqual(hand.winCompletes, .eye)
+        XCTAssertEqual(hand.melds.filter { !$0.isConcealed }.count, 3)
+        XCTAssertEqual(hand.melds.filter { $0.isConcealed }.count, 2)
+        XCTAssertEqual(WaitInference.infer(for: hand), .singleWait)
+    }
+
+    func test_pairInExposedRow_everythingLaidDown() throws {
+        // All 17 tiles in the exposed row: five called melds + the eye.
+        let hand = try Decomposer.decomposeWithConcealment(
+            concealedTiles: [],
+            exposedTiles: tiles("1m 2m 3m 4p 5p 6p 7p 8p 9p 1s 2s 3s Ew Ew Ew Sw Sw"),
+            winningTile: try Tile("Sw")
+        )
+        XCTAssertEqual(hand.melds.count, 5)
+        XCTAssertTrue(hand.melds.allSatisfy { !$0.isConcealed })
+        XCTAssertEqual(hand.eye.tiles, tiles("Sw Sw"))
+    }
+
+    func test_exposedRowStillRejectsLooseTiles() {
+        // A stray tile among the exposed melds is still an error.
+        XCTAssertThrowsError(try Decomposer.decomposeWithConcealment(
+            concealedTiles: tiles("1m 2m 3m 4p 5p 6p Sw Sw"),
+            exposedTiles: tiles("7p 8p 9p 1s 2s 3s Ew Ew Ew 5m"),
+            winningTile: try Tile("Sw")
+        ))
+    }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import MahjongCore
+import MahjongUI
 
 // MARK: - Identified tile model
 
@@ -61,14 +62,10 @@ struct TileCard: View {
 
     private var cardFace: some View {
         ZStack(alignment: .topTrailing) {
-            Text(tile.unicode)
-                .font(.system(size: DT.Tile.glyphSize))
-                .foregroundStyle(.primary)
+            TileFace(tile: tile)
                 .frame(width: DT.Tile.width, height: DT.Tile.height)
-                .background(
-                    RoundedRectangle(cornerRadius: DT.Tile.cornerRadius)
-                        .fill(backgroundFill)
-                )
+                .overlay(tintFill)
+                .clipShape(RoundedRectangle(cornerRadius: DT.Tile.cornerRadius))
                 .overlay(
                     RoundedRectangle(cornerRadius: DT.Tile.cornerRadius)
                         .strokeBorder(borderColor, lineWidth: borderWidth)
@@ -117,11 +114,12 @@ struct TileCard: View {
         .help(helpText)
     }
 
-    private var backgroundFill: Color {
-        if isWinning { return Color.accentColor.opacity(0.22) }
-        if isSelected { return Color.blue.opacity(0.18) }
-        if isLowConfidence { return Color.orange.opacity(0.10) }
-        return Color(nsColor: .controlBackgroundColor)
+    /// Translucent wash over the tile photo for the highlighted states.
+    private var tintFill: Color {
+        if isWinning { return Color.accentColor.opacity(0.18) }
+        if isSelected { return Color.blue.opacity(0.2) }
+        if isLowConfidence { return Color.orange.opacity(0.18) }
+        return .clear
     }
 
     private var borderColor: Color {
@@ -310,8 +308,9 @@ struct TilePickerView: View {
                         Text("Current:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text(current.unicode)
-                            .font(.system(size: 24))
+                        TileFace(tile: current)
+                            .frame(width: 24, height: 33)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
                         Text(current.displayName)
                             .font(.callout.weight(.medium))
                             .foregroundStyle(.secondary)
@@ -358,16 +357,10 @@ private struct PickerTile: View {
 
     var body: some View {
         Button(action: onPick) {
-            Text(tile.unicode)
-                .font(.system(size: DT.Tile.glyphSize))
-                .foregroundStyle(.primary)
+            TileFace(tile: tile)
                 .frame(width: DT.Tile.width, height: DT.Tile.height)
-                .background(
-                    RoundedRectangle(cornerRadius: DT.Tile.cornerRadius)
-                        .fill(isCurrent
-                              ? Color.accentColor.opacity(0.15)
-                              : Color(nsColor: .controlBackgroundColor))
-                )
+                .overlay(isCurrent ? Color.accentColor.opacity(0.18) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: DT.Tile.cornerRadius))
                 .overlay(
                     RoundedRectangle(cornerRadius: DT.Tile.cornerRadius)
                         .strokeBorder(

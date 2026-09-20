@@ -1,7 +1,10 @@
 # Mahjong Score — Project Context Summary
 
 ## Project
-Taiwan 16-tile mahjong scorer. Mac SwiftUI app (`Sources/MahjongScoreApp/`) + `MahjongCore` Swift library. Runs as `swift run MahjongScoreApp` or as `build/MahjongScore.app` (built via `scripts/build-app.sh`). 116/116 tests passing.
+Taiwan 16-tile mahjong scorer. Mac SwiftUI app (`Sources/MahjongScoreApp/`) + iPhone app (`iOS/`) sharing `MahjongCore` (engine) and `MahjongUI` (tap-to-enter screens). Mac runs as `swift run MahjongScoreApp` or `build/MahjongScore.app` (via `scripts/build-app.sh`). iPhone: `cd iOS && xcodegen generate`, then build `MahjongScoreiOS.xcodeproj` in Xcode (needs the iOS 26.5 simulator runtime for Xcode 26.6). 116/116 tests passing.
+
+## Direction (decided 2026-09-19)
+Tap-to-enter grid is now the primary input on both platforms — ~20 taps per hand, no correction loop. Photo recognition stays as a secondary "Photo" mode on the Mac. Paths B/C (offline YOLO, synthetic data) are dropped: the manual labelling they need isn't worth it for a personal app. If photo mode is worth improving later, the order is: (1) replay `corrections/` through each model as a benchmark, (2) use `Decomposer` as a validity constraint to auto-fix off-by-one pin reads, (3) overlay labels on the photo.
 
 ## Architecture
 
@@ -11,15 +14,35 @@ Taiwan 16-tile mahjong scorer. Mac SwiftUI app (`Sources/MahjongScoreApp/`) + `M
 - `Scorer`/`Decomposer`/`WaitInference`: scoring engine for ~56 of 88 patterns from twmahjong.com (Wave 1+2 done; Wave 3 deferred — `Rules.json` is the source of truth, see `RULES.md`)
 - Recognition layer: `RecognizedTile` (tile + bbox + confidence), `ImageRecognizer` protocol, `ClaudeRecognizer` impl
 
-**`MahjongScoreApp` target**:
-- `ContentView.swift`: 3-section layout (top: photo + tile rows, middle: context form, bottom: score)
+**`MahjongUI` library** — cross-platform SwiftUI (iOS 17 / macOS 14), depends only on MahjongCore:
+- `HandEntryModel`: ObservableObject holding concealed/exposed/flowers (`EntryTile` = Tile + UUID), win context, score result. Rules: flowers always go to the flowers row and dedupe; body tiles cap at 4 copies; last body tile added is the winning tile until marked manually. Persists base/round/seat/dealer to UserDefaults.
+- `TileGridPicker`: 9-column grid of all 42 tiles; cells show in-hand count, dim at the cap.
+- `HandStripView`: entered tiles by row; tap selects; row header sets grid target.
+- `ContextFormView`: Round/Seat, then the everyday switches (Self-drawn, Dealer, Declared ready — the last defaults ON and resets to on with Clear). "Special situations" disclosure holds the rare bonuses in plain English with "+N" read from Rules.json, plus the Base stepper (user always plays 5).
+- `HandEntryScreen`: `.compact` (iPhone) = picker at the top, hand strip under it, then settings and result, with the Undo/Clear/Score bar pinned to the bottom via `safeAreaInset` and `ScoreErrorBanner` directly above it. `.wide` (Mac) = strip/settings/result column beside the grid. Score button: valid → success haptic + auto-scroll to the total; invalid → error haptic, button flashes red, banner appears. Clear scrolls back to the picker. Action bar and headers cap Dynamic Type at accessibility1 and step down to icon-only (user runs large text on their iPhone 11).
+- `ScoreResultView` shows only the result; errors are `ScoreErrorBanner`.
+- `TileFace`: every tile in both apps (grid, hand strip, Mac photo-mode cards and picker) is drawn from a photo of the user's physical tile — `Sources/MahjongUI/Resources/Tiles/tile-<notation>.jpg`, 300×408. Regenerate with `python3 scripts/extract_tile_images.py ~/Documents/Mahjong/Mahjong_cheat_sheet.png [--contact out.png]` (needs Pillow + numpy). The sheet's order is West/South/East/North and White/Red/Green — the script maps by name. Labels printed over the wind/dragon/flower tiles are painted out with a blank-tile template (White dragon's frame is mirrored from its top half); flowers 1–3 of each row lose a little artwork at the bottom. Unicode glyph (with U+FE0E so 🀄 isn't colour emoji) is the fallback if a photo is missing.
+
+**Table payments** — "Payments" toolbar button on the entry screen opens `TablePaymentsView`: a reference sheet of payments that aren't part of a winning hand (dealer rolls 1-2-3 / triple, flower-set payouts, 追, 叫碰不碰, unrevealed concealed kong, 詐胡). Data lives in `Sources/MahjongCore/Resources/TablePayments.json` (loader `TablePayments.load()`), deliberately separate from `Rules.json` because a test pins that at 88 scoring patterns; `TablePaymentsTests` keeps the two in step (every `other`-category rule must have an entry). Amounts are in 底 and multiplied by the user's Base setting. OPEN QUESTION: `Rules.json` records 一二三 (`mixed-flowers-grass`, 3 台) as an in-hand flower pattern, but the source's Chinese text — and the user — describe it as the dealer's dice penalty. Scoring was left untouched pending the user's answer.
+
+**App icon** — East wind tile on green felt, generated by `python3 scripts/make_app_icon.py ~/Documents/Mahjong/Mahjong_cheat_sheet.png` into `Assets/AppIcon/` (mac 1024 + `.icns`, used by `build-app.sh`), `Sources/MahjongScoreApp/Resources/AppIcon.png` (Dock icon under `swift run`, set in `AppDelegate`), and `iOS/MahjongScoreiOS/Assets.xcassets`. `build-app.sh` copies every `.build/release/*.bundle` (rules, tile photos, app resources). `iOS/project.yml` pins `DEVELOPMENT_TEAM: 9NGY8LHJ88` so `xcodegen generate` doesn't wipe signing.
+
+**`SnapshotUI` tool** — `swift run SnapshotUI <dir>` renders compact.png / wide.png of the entry UI with a sample scored hand via ImageRenderer (ScrollViews and native controls render blank — expected).
+
+**`iOS/`** — xcodegen `project.yml` + one-file app shell `MahjongScoreiOS/MahjongScoreiOSApp.swift` wrapping `HandEntryScreen`. Bundle id `com.pdunham.mahjongscore`, portrait only, iPhone only.
+
+**`MahjongScoreApp` target** (Mac):
+- `RootView.swift`: toolbar segmented "Enter / Photo" switch (persisted in `rootMode`). Enter = `HandEntryScreen`; Photo = `ContentView`.
+- `ContentView.swift`: photo mode — 3-section layout (top: photo + tile rows, middle: context form, bottom: score). Photo is 480×480; recognition runs only when the Recognize button is pressed (so rotation can be fixed first); flowers found in body rows are moved to Flowers and deduped.
 - `TileViews.swift`: `TileCard`, `TilePickerView` (modal flat 42-tile picker), `IdentifiedTile` (UUID-tracked, carries bbox + confidence)
 - `APIKeyStore`: Keychain wrapper for Anthropic API key
 - `CorrectionsLog` + `TrainingDataSaver`: save photo + cropped tile training samples to `~/Library/Application Support/MahjongScore/`
 - `TrainingCoordinator` + `TileClassifier` + `LocalRecognizer`: CreateML training loop + offline recognizer (built but not yet useful — needs accumulated training data)
 
-## Current state of recognition (Path A complete)
-ClaudeRecognizer does two-pass: first-pass whole-image with structured tool_use → `RecognizedTiles` (rows + bboxes + per-tile confidence). Second pass re-verifies low-confidence tiles + ALL pin tiles below 0.95 + ALWAYS the winning tile, by cropping the bbox and sending a focused single-tile call. Prompt caching via system block + `cache_control: ephemeral` cuts repeat-call cost ~30–50%.
+## Current state of recognition (Path A complete, incl. item 5)
+ClaudeRecognizer does two-pass: first-pass whole-image with structured tool_use → `RecognizedTiles` (rows + bboxes + per-tile confidence). Second pass re-verifies low-confidence tiles + ALL pin tiles below 0.95 + ALWAYS the winning tile, by cropping the bbox and sending a focused single-tile call. Both passes are preceded by a cached few-shot turn of nine synthetic 1p–9p reference PNGs (drawn with CoreGraphics in `ClaudeRecognizer.pinReferencePNGs`, deterministic bytes so the prefix cache hits). Prompt caching via system block + `cache_control: ephemeral`.
+
+Training data accumulates in `~/Library/Application Support/MahjongScore/training-data/<notation>/` (not `crops/`, which is an empty leftover). As of 2026-09-19: 511 crops, 34/42 classes; `corrections/` holds 39 photo+JSON ground-truth pairs.
 
 ## Recent UI work
 - Bigger tiles (64×88, 50pt glyphs)
