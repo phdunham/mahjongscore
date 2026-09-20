@@ -104,12 +104,40 @@ devices automatically):
 Apple requires at least one screenshot set; these three are enough. You can
 add up to 10 per device size later without a new build.
 
+## App Review notes
+
+Paste into App Store Connect → the version page → **App Review
+Information → Notes**. It tells the reviewer how to see the app do
+something without knowing Taiwan mahjong.
+
+```
+Mahjong Score scores a Taiwan 16-tile mahjong winning hand. No login or
+account is needed, and the app works fully offline.
+
+To see a scored hand:
+1. Tap the "Exposed" box (the middle box under the tile grid).
+2. Tap the 5-dots tile (row "Dots") three times.
+3. Tap the "Concealed" box.
+4. Tap these tiles in order: 1-character, 2-character, 3-character;
+   1-dot three times; 1-bamboo (the bird), 2-bamboo, 3-bamboo; East
+   wind three times; North wind twice.
+5. Tap the spring flower (row "Flowers", first tile).
+6. Tap "Score" at the bottom right.
+
+Expected result: 22 tai with a breakdown of scoring patterns. Tapping
+Score on an incomplete hand shows a red message explaining what is
+missing; that is intended.
+
+The "Payments" button (top right) opens a reference sheet of table
+payments. The app collects no data and makes no network requests.
+```
+
 ## Build
 
 | Field | Value |
 |---|---|
 | **Marketing version** | 1.0 |
-| **Build number** | 2 (bumped from 1 — Apple rejects a re-upload of the same build number) |
+| **Build number** | Build 1 is already on App Store Connect, so the next upload is 2. Info.plist now reads `$(CURRENT_PROJECT_VERSION)`; before, it was a hard-coded "1" and the setting was ignored. |
 | **Minimum iOS** | 17.0 |
 | **Devices** | iPhone only |
 | **Encryption** | None (already declared in Info.plist — no prompt at upload) |

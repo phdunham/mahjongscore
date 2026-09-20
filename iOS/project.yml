@@ -35,6 +35,11 @@ targets:
       path: MahjongScoreiOS/Info.plist
       properties:
         CFBundleDisplayName: Mahjong Score
+        # Must reference the build settings: XcodeGen otherwise writes the
+        # literals "1.0" / "1" here and CURRENT_PROJECT_VERSION is silently
+        # ignored (Apple then rejects re-uploads as ITMS-90189).
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
