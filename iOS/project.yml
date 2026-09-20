@@ -7,6 +7,18 @@ options:
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "26.0"
+  # Emit a real, shared .xcscheme (Archive/TestFlight need one that's checked
+  # into git, not the private per-user scheme Xcode improvises otherwise).
+  generateEmptySchemes: false
+schemes:
+  MahjongScoreiOS:
+    build:
+      targets:
+        MahjongScoreiOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release
 packages:
   MahjongScore:
     path: ..
