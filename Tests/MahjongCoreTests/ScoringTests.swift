@@ -83,8 +83,11 @@ final class ScoringTests: XCTestCase {
 
     func test_ruleTable_loads() throws {
         let rt = try RuleTable.load()
-        XCTAssertEqual(rt.patterns.count, 88)
+        // 88 patterns scraped from twmahjong.com, plus "dealer" — a table
+        // convention the source table omits, added locally.
+        XCTAssertEqual(rt.patterns.count, 89)
         XCTAssertNotNil(rt.patterns.first(where: { $0.id == "self-draw" }))
+        XCTAssertNotNil(rt.patterns.first(where: { $0.id == "dealer" }))
     }
 
     // MARK: - Hand 1: great-pure-ping (multi-suit all-chows, no honors, no flowers, concealed self-draw)
