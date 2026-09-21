@@ -103,7 +103,7 @@ Fetched: 2026-04-18
 
 | Name (中文) | English | Tai | Condition |
 |---|---|---|---|
-| 斷么 | All Simples | 5 | 全副牌沒有么九及番子 |
+| 斷么 | No 1s, 9s or Honors | 5 | 全副牌沒有么九及番子 |
 | 全帶混么 | Outside Hand with Honors | 10 | 全副牌每一組合都有么九或番子 |
 | 全帶么 | Pure Outside Hand | 15 | 全副牌每一組合都有么九, 無番子 |
 | 混么 | All Terminals and Honors | 30 | 全副牌都是么九及番子 |
