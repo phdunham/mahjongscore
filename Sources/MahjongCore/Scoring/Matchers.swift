@@ -104,6 +104,9 @@ extension Scorer {
         if context.declaredTing {
             out.append(rules.award("declared-ready"))
         }
+        if context.isDealer {
+            out.append(rules.award("dealer"))
+        }
 
         // Fast-win awards: seven-tiles supersedes ten-tiles.
         if let n = context.turnsBeforeWin {

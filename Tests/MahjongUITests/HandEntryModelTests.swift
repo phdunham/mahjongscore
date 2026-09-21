@@ -120,6 +120,32 @@ final class HandEntryModelTests: XCTestCase {
         XCTAssertTrue(ids.contains("self-draw"))
     }
 
+    // MARK: Dealer
+
+    func test_dealer_off_doesNotAwardDealer() throws {
+        let model = try makeModel()
+        enterSampleHand(model)
+        model.isDealer = false
+        model.score()
+        let ids = try XCTUnwrap(model.breakdown).awards.map(\.ruleId)
+        XCTAssertFalse(ids.contains("dealer"))
+    }
+
+    func test_dealer_on_awardsOneTai() throws {
+        let model = try makeModel()
+        enterSampleHand(model)
+        model.isDealer = false
+        model.score()
+        let without = try XCTUnwrap(model.breakdown).totalTai
+
+        model.isDealer = true
+        model.score()
+        let breakdown = try XCTUnwrap(model.breakdown)
+        let dealer = try XCTUnwrap(breakdown.awards.first { $0.ruleId == "dealer" })
+        XCTAssertEqual(dealer.totalTai, 1)
+        XCTAssertEqual(breakdown.totalTai, without + 1, "dealer adds exactly 1 tai")
+    }
+
     /// 123m + 111p + 123s + EEE concealed, 555p exposed, NN eye, one flower.
     private func enterSampleHand(_ model: HandEntryModel) {
         model.target = .exposed

@@ -202,6 +202,15 @@
       "descriptionEn": "Winning tile is drawn by the winner themselves."
     },
     {
+      "id": "dealer",
+      "nameZh": "莊家",
+      "nameEn": "Dealer",
+      "tai": 1,
+      "category": "bonus",
+      "description": "莊家胡牌",
+      "descriptionEn": "The winner was the dealer. Local addition: the dealer bonus is a table convention rather than a hand pattern, so it is not in the twmahjong.com table."
+    },
+    {
       "id": "concealed-self-draw",
       "nameZh": "門清自摸",
       "nameEn": "Concealed Self-Draw",
@@ -654,7 +663,7 @@
     {
       "id": "all-simples",
       "nameZh": "斷么",
-      "nameEn": "All Simples",
+      "nameEn": "No 1s, 9s or Honors",
       "tai": 5,
       "category": "terminal",
       "description": "全副牌沒有么九及番子",
